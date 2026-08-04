@@ -536,7 +536,7 @@ function daysBetween(fromStr, toStr) {
 // id, so the same stay is always the same color across every week row it spans and
 // across re-renders) instead of coloring by sync source — makes back-to-back or
 // overlapping stays easy to tell apart at a glance.
-const GANTT_COLORS = ['#0b5f7a', '#2f9e44', '#c98a00', '#8e44ad', '#c0392b', '#1f6feb', '#0e7c86', '#b5651d'];
+const GANTT_COLORS = ['#a0522d', '#2f9e44', '#c98a00', '#8e44ad', '#c0392b', '#1f6feb', '#0e7c86', '#b5651d'];
 function bookingColor(id) {
   const n = Math.abs(Number(id)) || 0;
   return GANTT_COLORS[n % GANTT_COLORS.length];
@@ -970,7 +970,7 @@ function renderOwnerCalendarGrid() {
     ).join('') : '';
     const isSelected = svcCalSelectedDate === dateStr;
     html += `
-      <div class="cal-cell ${inMonth ? '' : 'other-month'} ${dateStr === today ? 'is-today' : ''}" style="${isSelected ? 'background:#e3f1fb; border-color:#0b5f7a;' : ''}" onclick="onSvcCalDayClick('${dateStr}')">
+      <div class="cal-cell ${inMonth ? '' : 'other-month'} ${dateStr === today ? 'is-today' : ''}" style="${isSelected ? 'background:#e3f1fb; border-color:#a0522d;' : ''}" onclick="onSvcCalDayClick('${dateStr}')">
         <div class="cal-daynum">${cellDate.getDate()}</div>
         ${apptChips}${requestChips}
       </div>

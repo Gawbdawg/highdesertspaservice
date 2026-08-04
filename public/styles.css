@@ -1,14 +1,14 @@
 :root {
-  --sidebar-bg: #0e2733;
-  --sidebar-bg-2: #113242;
-  --sidebar-text: #93aab3;
+  --sidebar-bg: #3a2013;
+  --sidebar-bg-2: #4a2a18;
+  --sidebar-text: #c9a892;
   --sidebar-text-active: #ffffff;
   --sidebar-hover: rgba(255,255,255,0.06);
   --sidebar-active: rgba(255,255,255,0.10);
-  --accent: #38bdf8;
-  --accent-2: #a78bfa;
-  --primary: #0b5f7a;
-  --primary-dark: #094a5f;
+  --accent: #dcb12b;
+  --accent-2: #53afe6;
+  --primary: #a0522d;
+  --primary-dark: #7a3f22;
   --bg: #f4f6f8;
   --card-bg: #ffffff;
   --border: #e5eaed;
@@ -141,11 +141,11 @@ textarea { width: 100%; resize: vertical; }
 }
 .appt-card .meta { font-size: 12.5px; color: var(--text-muted); margin-top: 2px; }
 .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600; }
-.badge.scheduled { background: #e3f1fb; color: #0b5f7a; }
+.badge.scheduled { background: #e3f1fb; color: #a0522d; }
 .badge.completed { background: #e5f5e8; color: #256b32; }
 .badge.cancelled { background: #fbe7e6; color: #a3382f; }
 .badge.draft { background: #f0eefc; color: #5b3fae; }
-.badge.sent { background: #e3f1fb; color: #0b5f7a; }
+.badge.sent { background: #e3f1fb; color: #a0522d; }
 .badge.paid { background: #e5f5e8; color: #256b32; }
 .badge.bundled { background: #eef1f3; color: #5a6b73; }
 
