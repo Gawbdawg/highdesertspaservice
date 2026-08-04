@@ -1,0 +1,24 @@
+{
+  "name": "highdesertspaservice",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Operations dashboard for High Desert Spa Service - scheduling, customers, invoicing, daily schedules.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "send-schedule": "node scripts/send-weekly-schedule.js",
+    "sync-calendars": "node scripts/sync-calendars.js",
+    "send-reminders": "node scripts/send-sms-reminders.js",
+    "send-review-requests": "node scripts/send-review-requests.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "body-parser": "^1.20.2",
+    "cookie-session": "^2.1.1",
+    "express": "^4.19.2",
+    "node-ical": "^0.27.1",
+    "nodemailer": "^9.0.3",
+    "pdfkit": "^0.19.1"
+  }
+}

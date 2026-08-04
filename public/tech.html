@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>High Desert Spa Service — Technician</title>
+<link rel="icon" type="image/png" href="/img/logo.png" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/portal.css" />
+</head>
+<body>
+  <div class="portal-app">
+    <header class="portal-header">
+      <img src="/img/logo.png" alt="High Desert Spa Service" class="brand-logo" />
+      <span>My Jobs</span>
+      <button class="btn small" id="logoutBtn" style="margin-left:auto; display:none;">Log out</button>
+    </header>
+
+    <main class="portal-main">
+      <!-- Login -->
+      <section id="loginView" class="portal-card">
+        <h1>Technician login</h1>
+        <div id="loginError" class="portal-error hidden"></div>
+        <label>Username<input type="text" id="loginUsername" autocomplete="username" /></label>
+        <label>Password<input type="password" id="loginPassword" autocomplete="current-password" /></label>
+        <button class="btn primary" id="loginBtn">Log in</button>
+      </section>
+
+      <!-- Jobs -->
+      <section id="jobsView" class="hidden">
+        <h1 id="welcomeMsg"></h1>
+
+        <nav class="owner-tabs" id="techTabs">
+          <button class="owner-tab-btn active" data-tab="jobs">Today</button>
+          <button class="owner-tab-btn" data-tab="calendar">Calendar</button>
+          <button class="owner-tab-btn" data-tab="timesheet">Timesheet</button>
+          <button class="owner-tab-btn" data-tab="timeoff">Time off</button>
+        </nav>
+
+        <!-- Today -->
+        <div id="tab-jobs" class="owner-tab-panel">
+          <p class="portal-sub" id="todayDateLabel"></p>
+
+          <div class="ripple-hairline" id="techTodayStripCard">
+            <div class="ripple-briefing">
+              <svg class="ripple-spark" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 5.9L20 9.5l-6.2 1.6L12 17l-1.8-5.9L4 9.5l6.2-1.6z"/></svg>
+              <div id="techTodayStripText" class="ripple-briefing-text">Loading today's route…</div>
+            </div>
+          </div>
+
+          <p class="portal-sub">Mark a job complete once you're done — you can undo that if you tap it by mistake. Tap "Get directions" on any job to open it in your Maps app.</p>
+          <div class="portal-card" style="max-width:520px; margin:0 0 16px;">
+            <div style="font-size:13px; font-weight:600;">Starting from</div>
+            <label style="margin-bottom:0;">Your starting address<input type="text" id="startAddressInput" placeholder="e.g. your home address" /></label>
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+              <button class="btn primary small" id="optimizeRouteBtn">Optimize route</button>
+              <span id="optimizeRouteStatus" class="portal-sub" style="margin:0;"></span>
+            </div>
+          </div>
+          <div id="jobsList" class="card-list"></div>
+        </div>
+
+        <!-- Calendar -->
+        <div id="tab-calendar" class="owner-tab-panel hidden">
+          <p class="portal-sub">Blue days are scheduled, green are completed. Grey/hatched days are time you've blocked off.</p>
+          <div class="cal-nav">
+            <button class="btn" id="techCalPrevBtn">‹</button>
+            <h2 id="techCalMonthLabel"></h2>
+            <button class="btn" id="techCalNextBtn">›</button>
+            <button class="btn" id="techCalTodayBtn">Today</button>
+          </div>
+          <div class="cal-grid" id="techCalGrid"></div>
+          <div id="techCalDayPanel" class="portal-card hidden" style="max-width:none; margin-top:16px;"></div>
+        </div>
+
+        <!-- Timesheet -->
+        <div id="tab-timesheet" class="owner-tab-panel hidden">
+          <div class="portal-card" style="max-width:420px; margin:0 0 16px; text-align:center;">
+            <div id="clockStatusLabel" style="font-size:14px; font-weight:600;"></div>
+            <div id="clockElapsed" style="font-size:28px; font-weight:700; margin:6px 0;"></div>
+            <button class="btn primary" id="clockToggleBtn" style="width:100%;"></button>
+            <div id="clockError" class="portal-error hidden" style="margin-top:8px;"></div>
+          </div>
+          <div class="stat-cards" id="timesheetStats"></div>
+          <p class="portal-sub">Last 30 days. Gas stipend is added automatically the first time you clock in each day.</p>
+          <div id="timesheetList"></div>
+        </div>
+
+        <!-- Time off -->
+        <div id="tab-timeoff" class="owner-tab-panel hidden">
+          <p class="portal-sub">Block off days you're not available — it takes effect right away, no approval needed. The admin can see this and will reach out if there's ever a conflict.</p>
+          <div class="calendar-form-row">
+            <label>First day off<input type="date" id="timeOffStart" /></label>
+            <label>Last day off<input type="date" id="timeOffEnd" /></label>
+            <label style="flex:1; min-width:160px;">Note<input type="text" id="timeOffNote" placeholder="optional" /></label>
+            <button class="btn primary" id="addTimeOffBtn">Block these days</button>
+          </div>
+          <div id="timeOffError" class="portal-error hidden"></div>
+          <div id="timeOffList"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <input type="file" id="photoFileInput" accept="image/*" capture="environment" style="display:none" />
+  <script src="/tech.js"></script>
+</body>
+</html>

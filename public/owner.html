@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>High Desert Spa Service — Customer Portal</title>
+<link rel="icon" type="image/png" href="/img/logo.png" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/portal.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+<body>
+  <div class="portal-app">
+    <header class="portal-header">
+      <img src="/img/logo.png" alt="High Desert Spa Service" class="brand-logo" />
+      <span>Customer Portal</span>
+      <button class="btn small" id="logoutBtn" style="margin-left:auto; display:none;">Log out</button>
+    </header>
+
+    <main class="portal-main">
+      <!-- Login -->
+      <section id="loginView" class="portal-card">
+        <h1>Customer login</h1>
+        <div id="loginError" class="portal-error hidden"></div>
+
+        <!-- Email + code (default) -->
+        <div id="codeLoginStep1">
+          <p class="portal-sub" style="margin:0 0 8px;">Enter your email and we'll send you a one-time code — no password needed.</p>
+          <label>Email<input type="email" id="codeEmail" autocomplete="email" /></label>
+          <button class="btn primary" id="sendCodeBtn">Send me a code</button>
+        </div>
+        <div id="codeLoginStep2" class="hidden">
+          <p class="portal-sub" id="codeSentTo" style="margin:0 0 8px;"></p>
+          <label>6-digit code<input type="text" id="codeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" /></label>
+          <button class="btn primary" id="verifyCodeBtn">Log in</button>
+          <button class="btn small" id="resendCodeBtn" style="margin-top:6px;">Send a new code</button>
+        </div>
+
+        <div style="border-top:1px solid #eef1f2; margin-top:16px; padding-top:12px;">
+          <button class="btn small" id="togglePasswordLoginBtn">Use username &amp; password instead</button>
+        </div>
+
+        <!-- Username + password (fallback for older accounts) -->
+        <div id="passwordLoginFields" class="hidden" style="margin-top:12px;">
+          <label>Username<input type="text" id="loginUsername" autocomplete="username" /></label>
+          <label>Password<input type="password" id="loginPassword" autocomplete="current-password" /></label>
+          <button class="btn primary" id="loginBtn">Log in</button>
+        </div>
+
+        <div style="border-top:1px solid #eef1f2; margin-top:16px; padding-top:12px;">
+          <button class="btn small" id="showSignupBtn">New here? Create an account</button>
+        </div>
+      </section>
+
+      <!-- Self sign-up: brand-new owners with no account yet. Lands with no property
+           linked — the dashboard's empty state walks them straight into adding one. -->
+      <section id="signupView" class="portal-card hidden">
+        <h1>Create your account</h1>
+        <div id="signupError" class="portal-error hidden"></div>
+        <label>Name<input type="text" id="signupName" autocomplete="name" /></label>
+        <label>Email<input type="email" id="signupEmail" autocomplete="email" /></label>
+        <label>Phone <span style="font-weight:400; color:#7a8f97;">(optional)</span><input type="tel" id="signupPhone" autocomplete="tel" /></label>
+        <label>Username <span style="font-weight:400; color:#7a8f97;">(optional — you can always log in with your email + a code instead)</span><input type="text" id="signupUsername" autocomplete="username" /></label>
+        <label>Password<input type="password" id="signupPassword" autocomplete="new-password" /></label>
+        <button class="btn primary" id="createAccountBtn">Create account</button>
+        <button class="btn small" id="backToLoginBtn" style="margin-top:6px;">Back to log in</button>
+      </section>
+
+      <!-- Terms of Service gate — shown once, the first time an owner logs in, before
+           they can reach the dashboard. -->
+      <section id="termsView" class="portal-card hidden" style="max-width:640px;">
+        <h1>Service Agreement &amp; Terms of Service</h1>
+        <p class="portal-sub" style="margin:0 0 12px;">Please review and agree to the terms below before continuing to your account.</p>
+        <div id="termsText" style="max-height:360px; overflow-y:auto; border:1px solid #eef1f2; border-radius:8px; padding:14px 16px; font-size:13px; line-height:1.55; color:#33505c;">
+          <p style="margin:0 0 10px;"><strong>High Desert Spa Service</strong></p>
+          <p style="margin:0 0 10px;">By requesting, scheduling, or paying for services from High Desert Spa Service ("Company," "we," "us"), the customer ("Customer," "you") agrees to the following terms:</p>
+
+          <p style="margin:12px 0 4px;"><strong>1. Services</strong></p>
+          <p style="margin:0 0 10px;">Company provides hot tub/spa maintenance and repair services, including but not limited to water testing and chemical balancing, filter cleaning or replacement, equipment inspection, jet and pump servicing, cover maintenance, and general repairs.</p>
+
+          <p style="margin:12px 0 4px;"><strong>2. Assumption of Risk</strong></p>
+          <p style="margin:0 0 10px;">Customer acknowledges that hot tubs and spas involve inherent risks, including electrical hazards, water damage, chemical exposure, mechanical failure, and slip hazards. Customer voluntarily assumes all such risks associated with the ownership, operation, and maintenance of their spa/hot tub.</p>
+
+          <p style="margin:12px 0 4px;"><strong>3. Limitation of Liability</strong></p>
+          <p style="margin:0 0 10px;">To the fullest extent permitted under Oregon law, Company is not liable for any indirect, incidental, consequential, special, or punitive damages arising from Services provided, including property damage, personal injury, loss of use, or water/chemical damage to surrounding structures or landscaping — except to the extent caused by Company's gross negligence or willful misconduct.</p>
+          <p style="margin:0 0 10px;">Company's total liability for any claim arising from the Services shall not exceed the amount Customer paid for the specific service giving rise to the claim.</p>
+
+          <p style="margin:12px 0 4px;"><strong>4. No Warranty on Pre-Existing Conditions</strong></p>
+          <p style="margin:0 0 10px;">Company is not liable for pre-existing damage, defects, or conditions of the spa/hot tub or surrounding structures that were not caused by Company. Customer is responsible for disclosing known issues prior to service.</p>
+
+          <p style="margin:12px 0 4px;"><strong>5. Indemnification</strong></p>
+          <p style="margin:0 0 10px;">Customer agrees to indemnify and hold harmless Company, its owners, employees, and agents from claims, damages, losses, or expenses (including reasonable attorney's fees) arising from Customer's misuse of the spa/hot tub, failure to follow Company's maintenance recommendations, or breach of this Agreement.</p>
+
+          <p style="margin:12px 0 4px;"><strong>6. Third-Party Parts</strong></p>
+          <p style="margin:0 0 10px;">Company is not responsible for defects in parts or components not manufactured by Company. Manufacturer warranties, where applicable, govern those parts instead.</p>
+
+          <p style="margin:12px 0 4px;"><strong>7. Chemical and Water Balance Disclaimer</strong></p>
+          <p style="margin:0 0 10px;">Company uses reasonable industry standards when balancing water chemistry but is not responsible for damage resulting from Customer's alteration of water balance after service, or from pre-existing water quality issues.</p>
+
+          <p style="margin:12px 0 4px;"><strong>8. Cancellation Policy</strong></p>
+          <p style="margin:0 0 10px;">Customer may cancel or reschedule a scheduled service at no charge if notice is given more than 24 hours before the appointment. Cancellations or rescheduling requests made within 24 hours of the scheduled appointment will be charged 50% of the service price.</p>
+
+          <p style="margin:12px 0 4px;"><strong>9. Governing Law</strong></p>
+          <p style="margin:0 0 10px;">This Agreement is governed by the laws of the State of Oregon, without regard to conflict of law principles.</p>
+
+          <p style="margin:12px 0 4px;"><strong>10. Severability</strong></p>
+          <p style="margin:0 0 10px;">If any provision of this Agreement is found unenforceable, the remaining provisions remain in full force and effect.</p>
+
+          <p style="margin:12px 0 4px;"><strong>11. Entire Agreement</strong></p>
+          <p style="margin:0 0 10px;">This Agreement is the entire agreement between the parties regarding the Services and supersedes any prior discussions or agreements, written or oral.</p>
+
+          <p style="margin:12px 0 4px;"><strong>12. Communications</strong></p>
+          <p style="margin:0 0 10px;">By agreeing to this Agreement, Customer also consents to receive occasional email updates from Company (service announcements, seasonal information, and similar communications). Customer may unsubscribe from these updates at any time from their account, without affecting the rest of this Agreement.</p>
+
+          <p style="margin:12px 0 4px;"><strong>Acknowledgment</strong></p>
+          <p style="margin:0;">By signing below, checking "I agree," or proceeding with scheduled service, Customer confirms they have read, understood, and agree to these terms.</p>
+        </div>
+        <label style="flex-direction:row; align-items:center; gap:8px; margin-top:14px;">
+          <input type="checkbox" id="agreeTermsCheckbox" style="width:auto;" />
+          <span>I have read and agree to the Service Agreement &amp; Terms of Service above.</span>
+        </label>
+        <div id="termsError" class="portal-error hidden"></div>
+        <div class="modal-actions" style="padding:0; margin-top:8px;">
+          <button class="btn primary" id="continueAfterTermsBtn">Continue</button>
+        </div>
+      </section>
+
+      <!-- Dashboard -->
+      <section id="dashView" class="hidden">
+        <h1 id="welcomeMsg"></h1>
+        <p class="portal-sub" id="introText">Request a hot tub service date any time.</p>
+
+        <div id="addPropertyRow" class="hidden" style="margin:0 0 16px;">
+          <button class="btn small" id="showAddPropertyBtn">+ Add a property</button>
+        </div>
+
+        <div id="addPropertyForm" class="portal-card hidden" style="max-width:420px; margin:0 0 20px;">
+          <h2 style="margin:0 0 4px; font-size:16px;">Add a property</h2>
+          <div id="addPropertyError" class="portal-error hidden"></div>
+          <label>Property name<input type="text" id="apName" placeholder="e.g. Lake House, Home" /></label>
+          <label>Address (required) <span style="font-weight:400; color:#7a8f97;">(so we can find it)</span><input type="text" id="apAddress" placeholder="Street address" /></label>
+          <div id="apAddressVerifyStatus" class="portal-sub" style="margin:-6px 0 8px;"></div>
+          <div id="apAddressMap" class="hidden" style="height:200px; border-radius:8px; margin:0 0 12px; overflow:hidden;"></div>
+          <label>Type
+            <select id="apType">
+              <option value="residential">Residential — regular recurring service</option>
+              <option value="vacation">Vacation rental — cleaned between guest bookings</option>
+              <option value="repair">Repair — one-off repairs & diagnostic visits</option>
+            </select>
+          </label>
+          <div style="display:flex; gap:8px;">
+            <button class="btn primary" id="saveNewPropertyBtn">Save property</button>
+            <button class="btn small hidden" id="cancelAddPropertyBtn">Cancel</button>
+          </div>
+        </div>
+
+        <!-- Property switcher — always visible whenever an owner has more than one
+             property, regardless of which tab is active or what type the CURRENTLY
+             selected property is. This used to live inside the vacation-only "Booking
+             calendar" tab, which meant an owner whose selected property happened to be
+             residential had no way to ever reach it (that tab doesn't even show up for a
+             residential property) — so a second property could look like it didn't
+             exist at all. -->
+        <div id="propertySwitcherRow" class="filter-row hidden">
+          <label>Property
+            <select id="propertySelect"></select>
+          </label>
+        </div>
+
+        <nav class="owner-tabs" id="ownerTabs">
+          <button class="owner-tab-btn active" data-tab="overview">Home</button>
+          <button class="owner-tab-btn" data-tab="visits">Services</button>
+          <button class="owner-tab-btn" data-tab="svccal">Schedule</button>
+          <button class="owner-tab-btn hidden" id="calendarTabBtn" data-tab="calendar">Guest bookings</button>
+          <button class="owner-tab-btn" data-tab="requests">Requests <span id="pendingRequestsBadge" class="tab-count hidden"></span></button>
+        </nav>
+
+        <!-- Overview / "Home" -->
+        <div id="tab-overview" class="owner-tab-panel">
+          <div class="ripple-hairline" id="ownerBriefingCard">
+            <div class="ripple-briefing">
+              <svg class="ripple-spark" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 5.9L20 9.5l-6.2 1.6L12 17l-1.8-5.9L4 9.5l6.2-1.6z"/></svg>
+              <div>
+                <div id="ownerBriefingText" class="ripple-briefing-text">Loading your update…</div>
+                <div id="ownerLastVisitSummary" class="ripple-briefing-text hidden" style="margin-top:8px; font-size:13px; color:var(--text-muted);"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="owner-summary-grid" id="overviewSummary"></div>
+
+          <div class="portal-card" style="max-width:none; margin:16px 0 0;">
+            <div id="propertyDetailsView" style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+              <div>
+                <div style="font-size:14px; font-weight:600;" id="propertyDetailsName"></div>
+                <div class="portal-sub" style="margin:0;" id="propertyDetailsMeta"></div>
+              </div>
+              <button class="btn small" id="editPropertyBtn">Edit property</button>
+            </div>
+            <div id="editPropertyForm" class="hidden" style="margin-top:10px;">
+              <div id="editPropertyError" class="portal-error hidden"></div>
+              <label>Property name<input type="text" id="epName" /></label>
+              <label>Address (required) <span style="font-weight:400; color:#7a8f97;">(so we can find it)</span><input type="text" id="epAddress" /></label>
+              <div id="epAddressVerifyStatus" class="portal-sub" style="margin:-6px 0 8px;"></div>
+              <div id="epAddressMap" class="hidden" style="height:200px; border-radius:8px; margin:0 0 12px; overflow:hidden;"></div>
+              <label>Type
+                <select id="epType">
+                  <option value="residential">Residential — regular recurring service</option>
+                  <option value="vacation">Vacation rental — cleaned between guest bookings</option>
+                  <option value="repair">Repair — one-off repairs & diagnostic visits</option>
+                </select>
+              </label>
+              <p class="portal-sub" style="margin:0 0 8px;">Switching to "Vacation rental" adds a Booking calendar tab where you can paste your iCal export link.</p>
+              <div style="display:flex; gap:8px;">
+                <button class="btn primary" id="saveEditPropertyBtn">Save changes</button>
+                <button class="btn small" id="cancelEditPropertyBtn">Cancel</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="serviceSetupCard" class="portal-card hidden" style="max-width:none; margin:20px 0 0;">
+            <div id="serviceSetupContent"></div>
+          </div>
+
+          <!-- Repair-type properties only: same recurring "set up regular service"
+               option residential properties get above, plus this explicit switch to
+               decline it if routine maintenance isn't what they're looking for. -->
+          <div id="maintenanceOptOutCard" class="portal-card hidden" style="max-width:none; margin:20px 0 0;">
+            <label style="flex-direction:row; align-items:center; gap:8px;">
+              <input type="checkbox" id="maintenanceOptOutToggle" style="width:auto;" />
+              <span>Opt out of routine maintenance service for this property</span>
+            </label>
+            <p class="portal-sub" style="margin:4px 0 0;" id="maintenanceOptOutStatus">Leave this unchecked if you'd also like the option to set up regular maintenance visits above — check it if you just want us on call for repairs.</p>
+          </div>
+
+          <div class="portal-card" style="max-width:none; margin:16px 0 0;">
+            <label style="flex-direction:row; align-items:center; gap:8px;">
+              <input type="checkbox" id="newsletterToggle" style="width:auto;" />
+              <span>Send me occasional updates from High Desert Spa Service</span>
+            </label>
+            <div id="newsletterToggleStatus" class="portal-sub" style="margin:0;"></div>
+          </div>
+
+          <!-- Autopay: owner-wide (not per-property) — applies across all your properties'
+               invoices, whichever ones you have. -->
+          <div class="portal-card" style="max-width:none; margin:16px 0 0;">
+            <div style="font-size:14px; font-weight:600;">Autopay</div>
+            <div id="autopayStatus" class="portal-sub" style="margin:4px 0 8px;"></div>
+            <button class="btn primary" id="enableAutopayBtn">Turn on autopay</button>
+            <button class="btn small danger hidden" id="disableAutopayBtn">Turn off autopay</button>
+          </div>
+        </div>
+
+        <!-- Visits -->
+        <div id="tab-visits" class="owner-tab-panel hidden">
+          <h2>Upcoming services</h2>
+          <p class="portal-sub">The hot tub services already on the calendar for your properties.</p>
+          <div id="visitsList"></div>
+        </div>
+
+        <!-- Service calendar -->
+        <div id="tab-svccal" class="owner-tab-panel hidden">
+          <h2>Schedule</h2>
+          <p class="portal-sub">Blue days are scheduled, green are completed, amber are pending requests. Click any open day to request service.</p>
+          <div id="svcCalPropertyFilterRow" class="filter-row hidden">
+            <label>Property
+              <select id="svcCalPropertyFilter"></select>
+            </label>
+          </div>
+          <div class="cal-nav">
+            <button class="btn" id="svcCalPrevBtn">‹</button>
+            <h2 id="svcCalMonthLabel"></h2>
+            <button class="btn" id="svcCalNextBtn">›</button>
+            <button class="btn" id="svcCalTodayBtn">Today</button>
+          </div>
+          <div class="cal-grid" id="svcCalGrid"></div>
+          <div id="svcCalDayPanel" class="portal-card hidden" style="max-width:none; margin-top:16px;"></div>
+        </div>
+
+        <!-- Booking calendar (vacation properties only) -->
+        <div id="tab-calendar" class="owner-tab-panel hidden">
+
+          <div id="bookingSection">
+            <h2>Guest booking dates <span id="bookingSectionPropertyName" style="font-weight:400; color:#5a7078;"></span></h2>
+            <p class="portal-sub">Mark date ranges when this property is occupied so we schedule around your guests — either automatically from your Airbnb/VRBO calendar, or by adding dates yourself below.</p>
+
+            <div class="cal-nav">
+              <button class="btn" id="bookingCalPrevBtn">‹</button>
+              <h2 id="bookingCalMonthLabel"></h2>
+              <button class="btn" id="bookingCalNextBtn">›</button>
+              <button class="btn" id="bookingCalTodayBtn">Today</button>
+            </div>
+            <div class="gantt-legend">
+              <span>Each color is a different stay</span>
+              <span><span class="gantt-legend-swatch" style="background:#c98a00; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,0.8);"></span>Dashed outline = added manually</span>
+            </div>
+            <div class="gantt-cal" id="bookingGanttCal"></div>
+
+            <div class="portal-card" style="max-width:none; margin: 0 0 20px;">
+              <div style="font-size:14px; font-weight:600;">Auto-sync from Airbnb, VRBO, or another platform</div>
+              <p class="portal-sub" style="margin:0;">Paste this property's iCal export link (in Airbnb: Listing → Availability → Sync calendars → Export calendar). We'll pull in your booked dates automatically.</p>
+              <label>Calendar link (iCal URL)<input type="text" id="icalUrlInput" placeholder="https://www.airbnb.com/calendar/ical/....ics" /></label>
+              <div id="icalSyncStatus" class="portal-sub" style="margin:0;"></div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn primary" id="saveIcalBtn">Save & sync now</button>
+              </div>
+            </div>
+
+            <div class="calendar-form-row">
+              <label>Check-in <input type="date" id="bookingStart" /></label>
+              <label>Check-out <input type="date" id="bookingEnd" /></label>
+              <label style="flex:1; min-width:160px;">Notes <input type="text" id="bookingNotes" placeholder="optional" /></label>
+              <button class="btn primary" id="addBookingBtn">Add manually</button>
+            </div>
+            <div id="bookingsList"></div>
+          </div>
+        </div>
+
+        <!-- Requests -->
+        <div id="tab-requests" class="owner-tab-panel hidden">
+          <h2>Request a service date</h2>
+          <p class="portal-sub">Ask for a specific date — an extra clean, a repair, anything — and we'll confirm or reach out to reschedule.</p>
+          <div class="calendar-form-row">
+            <label id="requestPropertyRow" class="hidden">Property <select id="requestPropertySelect"></select></label>
+            <label>Requested date <input type="date" id="requestDate" /></label>
+            <label style="flex:1; min-width:160px;">Notes <input type="text" id="requestNotes" placeholder="e.g. extra clean, repair" /></label>
+          </div>
+          <div id="requestAddonsRow" class="hidden" style="margin:-6px 0 12px;">
+            <div class="portal-sub" style="margin:0 0 6px;">Add any extras for this service:</div>
+            <div id="requestAddonsList" class="job-addon-chips"></div>
+          </div>
+          <button class="btn primary" id="addRequestBtn">Request</button>
+          <div id="requestsList" style="margin-top:16px;"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/owner.js"></script>
+</body>
+</html>

@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>High Desert Spa Service</title>
+<link rel="icon" type="image/png" href="/img/logo.png" />
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/portal.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+</head>
+<body>
+  <!-- Admin login / first-time setup gate -->
+  <div class="portal-app" id="adminAuthView">
+    <header class="portal-header">
+      <img src="/img/logo.png" alt="High Desert Spa Service" class="brand-logo" />
+      <span>High Desert Spa Service — Office</span>
+    </header>
+    <main class="portal-main">
+      <section id="adminSetupView" class="portal-card hidden">
+        <h1>Set up your admin account</h1>
+        <p class="portal-sub" style="margin:0 0 6px;">This is the first time this dashboard has been opened — create the office login. You can add more admin accounts later from Settings.</p>
+        <div id="adminSetupError" class="portal-error hidden"></div>
+        <label>Your name<input type="text" id="adminSetupName" /></label>
+        <label>Username<input type="text" id="adminSetupUsername" autocomplete="username" /></label>
+        <label>Password (min. 8 characters)<input type="password" id="adminSetupPassword" autocomplete="new-password" /></label>
+        <button class="btn primary" id="adminSetupBtn">Create account & log in</button>
+      </section>
+
+      <section id="adminLoginView" class="portal-card hidden">
+        <h1>Office login</h1>
+        <div id="adminLoginError" class="portal-error hidden"></div>
+        <label>Username<input type="text" id="adminLoginUsername" autocomplete="username" /></label>
+        <label>Password<input type="password" id="adminLoginPassword" autocomplete="current-password" /></label>
+        <button class="btn primary" id="adminLoginBtn">Log in</button>
+      </section>
+    </main>
+  </div>
+
+  <div class="app hidden" id="appRoot">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <img src="/img/logo.png" alt="High Desert Spa Service" class="brand-logo" />
+        <div class="sidebar-brand-name">High Desert<small>Spa Service</small></div>
+      </div>
+
+      <nav class="surface-nav" id="surfaceNav">
+        <button class="surface-btn active" data-surface="today">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          Today
+        </button>
+        <button class="surface-btn" data-surface="schedule">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          Schedule
+        </button>
+        <button class="surface-btn" data-surface="people">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          People
+        </button>
+        <button class="surface-btn" data-surface="money">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          Money
+        </button>
+        <button class="surface-btn" data-surface="team">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/></svg>
+          Team
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="btn small" id="darkModeToggle" title="Toggle dark mode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          <span id="darkModeToggleLabel">Dark mode</span>
+        </button>
+        <button class="btn small" id="settingsDrawerBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Settings
+        </button>
+        <button class="btn small" id="adminLogoutBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Log out
+        </button>
+      </div>
+    </aside>
+
+    <div class="main-wrap">
+    <main id="main">
+
+      <!-- ================= TODAY surface ================= -->
+      <div class="surface active" id="surface-today">
+        <section id="tab-dashboard" class="tab-panel active">
+          <div class="panel-header">
+            <h1>Today — <span id="todayDate"></span></h1>
+          </div>
+
+          <div class="ripple-hairline" id="todayBriefingCard">
+            <div class="ripple-briefing">
+              <svg class="ripple-spark" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 5.9L20 9.5l-6.2 1.6L12 17l-1.8-5.9L4 9.5l6.2-1.6z"/></svg>
+              <div id="todayBriefingText" class="ripple-briefing-text">Loading your briefing…</div>
+            </div>
+          </div>
+
+          <div id="todayTeamStrip" class="team-strip"></div>
+
+          <h3 class="surface-subheading">Needs your attention</h3>
+          <div id="todayAttention" class="attention-list"></div>
+        </section>
+      </div>
+
+      <!-- ================= SCHEDULE surface ================= -->
+      <div class="surface" id="surface-schedule">
+        <div class="inner-nav">
+          <button class="tab-btn inner active" data-tab="calendar">Calendar</button>
+          <button class="tab-btn inner" data-tab="schedule">Daily Dispatch</button>
+          <button class="tab-btn inner" data-tab="propertycal">Property Calendar</button>
+          <button class="tab-btn inner" data-tab="requests">Requests</button>
+        </div>
+
+        <!-- Calendar -->
+        <section id="tab-calendar" class="tab-panel active">
+          <div class="panel-header">
+            <h1>Calendar</h1>
+            <div style="display:flex; gap:8px;">
+              <button class="btn" id="bulkImportBtn">Bulk import</button>
+              <button class="btn primary" id="newApptBtn">+ New Appointment</button>
+            </div>
+          </div>
+          <div class="cal-nav">
+            <button class="btn" id="calPrevBtn">‹</button>
+            <h2 id="calMonthLabel"></h2>
+            <button class="btn" id="calNextBtn">›</button>
+            <button class="btn" id="calTodayBtn">Today</button>
+          </div>
+          <div class="cal-grid" id="calGrid"></div>
+        </section>
+
+        <!-- Daily Schedule (dispatch board) -->
+        <section id="tab-schedule" class="tab-panel">
+          <div class="panel-header">
+            <h1>Daily Dispatch</h1>
+          </div>
+          <div class="filter-row">
+            <label>Date <input type="date" id="schedDate" /></label>
+          </div>
+          <div id="schedByTech" class="card-list"></div>
+        </section>
+
+        <!-- Property Calendar (vacation owners' guest booking dates) -->
+        <section id="tab-propertycal" class="tab-panel">
+          <div class="panel-header">
+            <h1>Property Calendar</h1>
+            <button class="btn primary" id="syncAllBtn">Sync all calendars now</button>
+          </div>
+          <p class="portal-hint">Guest booking dates, entered manually or auto-synced from owners' Airbnb/VRBO calendars.</p>
+          <div id="syncAllStatus" class="portal-hint"></div>
+          <div class="filter-row">
+            <label>Property
+              <select id="bookingCustomerFilter"><option value="">All properties</option></select>
+            </label>
+          </div>
+          <table class="data-table" id="bookingsTable">
+            <thead><tr><th>Property</th><th>Check-in</th><th>Check-out</th><th>Notes</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </section>
+
+        <!-- Service Requests (from owner portal) -->
+        <section id="tab-requests" class="tab-panel">
+          <div class="panel-header">
+            <h1>Service Requests</h1>
+          </div>
+          <p class="portal-hint">Requests submitted by owners through their portal. Schedule turns it into a real appointment.</p>
+          <div class="filter-row">
+            <label>Status
+              <select id="requestStatusFilter">
+                <option value="pending">Pending</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="declined">Declined</option>
+                <option value="">All</option>
+              </select>
+            </label>
+          </div>
+          <table class="data-table" id="requestsTable">
+            <thead><tr><th>Property</th><th>Requested date</th><th>Notes</th><th>Status</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </section>
+      </div>
+
+      <!-- ================= PEOPLE surface ================= -->
+      <div class="surface" id="surface-people">
+        <div class="inner-nav">
+          <button class="tab-btn inner active" data-tab="peopledir">People</button>
+          <button class="tab-btn inner" data-tab="customers">Homes (table)</button>
+          <button class="tab-btn inner" data-tab="owners">Owners (table)</button>
+        </div>
+
+        <!-- New unified People directory -->
+        <section id="tab-peopledir" class="tab-panel active">
+          <div class="panel-header">
+            <h1>People</h1>
+            <button class="btn primary" id="newCustomerFromPeopleBtn">+ New home</button>
+          </div>
+          <div class="filter-row">
+            <input type="text" id="peopleSearch" placeholder="Search name, email, or address…" style="min-width:260px;" />
+          </div>
+          <div id="peopleList" class="people-grid"></div>
+        </section>
+
+        <!-- Homes (old table — power-user view, exact original functionality) -->
+        <section id="tab-customers" class="tab-panel">
+          <div class="panel-header">
+            <h1>Homes</h1>
+            <button class="btn primary" id="newCustomerBtn">+ New Home</button>
+          </div>
+          <div class="filter-row">
+            <label>Type
+              <select id="customerTypeFilter">
+                <option value="">All</option>
+                <option value="vacation">Vacation rental</option>
+                <option value="residential">Residential</option>
+                <option value="repair">Repair</option>
+              </select>
+            </label>
+            <input type="text" id="customerSearch" placeholder="Search name or address…" />
+          </div>
+          <p class="portal-hint">Each home is a property. Link a home to an Owner account below to give them portal access at <code id="ownerPortalLink"></code> — one owner account can have several homes linked to it.</p>
+          <table class="data-table" id="customerTable">
+            <thead><tr><th>Name</th><th>Type</th><th>Phone</th><th>Email</th><th>Address</th><th>Equipment</th><th>Notes</th><th>Owner</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </section>
+
+        <!-- Owners (old table) -->
+        <section id="tab-owners" class="tab-panel">
+          <div class="panel-header">
+            <h1>Owners</h1>
+            <div style="display:flex; gap:8px;">
+              <button class="btn" id="bulkCreateOwnersBtn">Auto-link owner accounts</button>
+              <button class="btn primary" id="newOwnerBtn">+ New Owner</button>
+            </div>
+          </div>
+          <p class="portal-hint">Owner accounts log into <code id="ownerPortalLink2"></code>. Link homes to an owner from the Homes tab — one owner can have several homes. "Auto-link owner accounts" creates one for every home that doesn't have one yet (grouping by matching email/phone), with no password set until you add one.</p>
+          <div class="filter-row">
+            <label>Search
+              <input type="text" id="ownerSearchInput" placeholder="Search by name…" style="min-width:220px;" />
+            </label>
+            <label>Type
+              <select id="ownerTypeFilter">
+                <option value="">All</option>
+                <option value="vacation">Vacation rental</option>
+                <option value="residential">Residential</option>
+                <option value="repair">Repair</option>
+              </select>
+            </label>
+          </div>
+          <table class="data-table" id="ownerTable">
+            <thead><tr><th>Name</th><th>Type</th><th>Phone</th><th>Email</th><th>Username</th><th>Properties</th><th>Billing</th><th>Autopay</th><th>Login set up?</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </section>
+      </div>
+
+      <!-- ================= MONEY surface ================= -->
+      <div class="surface" id="surface-money">
+        <div class="inner-nav">
+          <button class="tab-btn inner active" data-tab="moneyqueue">Needs action</button>
+          <button class="tab-btn inner" data-tab="invoices">Invoices (table)</button>
+          <button class="tab-btn inner" data-tab="reports">Reports</button>
+        </div>
+
+        <!-- New AI-assisted money queue -->
+        <section id="tab-moneyqueue" class="tab-panel active">
+          <div class="panel-header">
+            <h1>Money</h1>
+            <button class="btn primary" id="newInvoiceFromMoneyBtn">+ New Invoice</button>
+          </div>
+          <div class="stat-cards" id="moneyStats"></div>
+          <h3 class="surface-subheading">Needs action</h3>
+          <div id="moneyQueue" class="attention-list"></div>
+          <h3 class="surface-subheading">Recently settled</h3>
+          <div id="moneySettled" class="settled-list"></div>
+        </section>
+
+        <!-- Invoices (old table) -->
+        <section id="tab-invoices" class="tab-panel">
+          <div class="panel-header">
+            <h1>Invoices</h1>
+            <button class="btn primary" id="newInvoiceBtn">+ New Invoice</button>
+          </div>
+          <div class="stat-cards" id="invoiceStats"></div>
+          <div class="filter-row">
+            <label>Status
+              <select id="invoiceStatusFilter">
+                <option value="">All</option>
+                <option value="draft">Draft</option>
+                <option value="sent">Sent (not overdue)</option>
+                <option value="overdue">Overdue</option>
+                <option value="paid">Paid</option>
+                <option value="bundled">Bundled into monthly invoice</option>
+              </select>
+            </label>
+          </div>
+          <table class="data-table" id="invoiceTable">
+            <thead><tr><th>Home</th><th>Amount</th><th>Issued</th><th>Due</th><th>Status</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </section>
+
+        <!-- Reports (old) -->
+        <section id="tab-reports" class="tab-panel">
+          <div class="panel-header">
+            <h1>Reports</h1>
+          </div>
+          <div class="stat-cards" id="reportStats"></div>
+          <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-bottom:16px;">
+            <h3>Uncompleted tasks</h3>
+            <p class="portal-sub" style="margin:0 0 8px;">Jobs whose scheduled date has already passed but were never marked complete or cancelled — usually a missed visit or one the tech forgot to close out.</p>
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>Days overdue</th><th>Home</th><th>Service</th><th>Technician</th><th></th></tr></thead>
+              <tbody id="uncompletedTasksBody"></tbody>
+            </table>
+          </div>
+          <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-bottom:16px;">
+            <h3>Service history by owner</h3>
+            <p class="portal-sub" style="margin:0 0 8px;">Pick an owner to see each of their homes and how many of each service type has been completed there.</p>
+            <label style="max-width:320px;">Owner<select id="reportOwnerSelect"></select></label>
+            <div id="reportOwnerDetail" style="margin-top:10px;"></div>
+          </div>
+          <div class="profile-grid">
+            <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+              <h3>Revenue by month (paid invoices)</h3>
+              <div id="reportRevenueBars"></div>
+            </div>
+            <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+              <h3>Jobs completed by month</h3>
+              <div id="reportJobsBars"></div>
+            </div>
+          </div>
+          <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-top:16px;">
+            <h3>Completed jobs by technician</h3>
+            <div id="reportTechBars"></div>
+          </div>
+          <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-top:16px;">
+            <h3>Cancelled visits</h3>
+            <table class="data-table">
+              <thead><tr><th>Date</th><th>Home</th><th>Service</th><th>Cancellation fee</th></tr></thead>
+              <tbody id="cancelledVisitsBody"></tbody>
+            </table>
+          </div>
+          <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-top:16px;">
+            <h3>Completed jobs missing an invoice</h3>
+            <p class="portal-sub" style="margin:0 0 8px;">These jobs were marked complete but never got invoiced — usually because they weren't linked to a service in the catalog when they were created. Select the ones that should have been billed for the same service, pick that service below, and apply it to all of them at once.</p>
+            <div id="missingInvoiceToolbar" class="filter-row hidden" style="align-items:center; gap:8px; margin:0 0 10px; flex-wrap:wrap;">
+              <span id="missingInvoiceSelectedCount" style="font-size:13px; color:var(--text-muted);"></span>
+              <select id="missingInvoiceServiceSelect" style="flex:1; max-width:320px;"></select>
+              <select id="missingInvoiceTierSelect" class="hidden" style="max-width:220px;"></select>
+              <button class="btn primary small" id="assignMissingInvoiceServiceBtn" onclick="assignServiceToMissingInvoices()">Assign & invoice selected</button>
+            </div>
+            <table class="data-table">
+              <thead><tr><th><input type="checkbox" id="missingInvoiceSelectAll" onchange="toggleAllMissingInvoice(this)" /></th><th>Date</th><th>Home</th><th>Technician</th><th>Service label</th></tr></thead>
+              <tbody id="missingInvoiceBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <!-- ================= TEAM surface ================= -->
+      <div class="surface" id="surface-team">
+        <div class="inner-nav">
+          <button class="tab-btn inner active" data-tab="teampulse">Team</button>
+          <button class="tab-btn inner" data-tab="technicians">Technicians (table)</button>
+          <button class="tab-btn inner" data-tab="timesheets">Timesheets (table)</button>
+        </div>
+
+        <!-- New Team performance surface -->
+        <section id="tab-teampulse" class="tab-panel active">
+          <div class="panel-header">
+            <h1>Team</h1>
+            <button class="btn primary" id="newTechFromTeamBtn">+ New Technician</button>
+          </div>
+          <div class="ripple-hairline" id="teamPulseCard">
+            <div class="ripple-briefing">
+              <svg class="ripple-spark" viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.8 5.9L20 9.5l-6.2 1.6L12 17l-1.8-5.9L4 9.5l6.2-1.6z"/></svg>
+              <div id="teamPulseText" class="ripple-briefing-text">Loading this week's team summary…</div>
+            </div>
+          </div>
+          <div id="teamCards" class="team-cards"></div>
+        </section>
+
+        <!-- Technicians (old table) -->
+        <section id="tab-technicians" class="tab-panel">
+          <div class="panel-header">
+            <h1>Technicians</h1>
+            <button class="btn primary" id="newTechBtn">+ New Technician</button>
+          </div>
+          <p class="portal-hint">Technicians log into their own job list at <code id="techPortalLink"></code> using the username/password you set below.</p>
+          <table class="data-table" id="techTable">
+            <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Hourly rate</th><th>Username</th><th>Login set up?</th><th>Upcoming time off</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </section>
+
+        <!-- Timesheets / Payroll (old table) -->
+        <section id="tab-timesheets" class="tab-panel">
+          <div class="panel-header">
+            <h1>Timesheets</h1>
+            <button class="btn primary" id="newTimeEntryBtn">+ Add entry</button>
+          </div>
+          <p class="portal-hint">Hours, gas stipend, and pay computed from each technician's clock in/out in their portal. Correct a mistake (forgotten clock-out, typo) with Edit/Delete below.</p>
+          <div class="filter-row">
+            <label>Technician
+              <select id="timesheetTechFilter"><option value="">All technicians</option></select>
+            </label>
+            <label>From <input type="date" id="timesheetFromFilter" /></label>
+            <label>To <input type="date" id="timesheetToFilter" /></label>
+          </div>
+          <div class="stat-cards" id="timesheetStats"></div>
+          <table class="data-table" id="timesheetTable">
+            <thead><tr><th>Technician</th><th>Date</th><th>Hours</th><th>Gas stipend</th><th>Wages</th><th>Pay</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </section>
+      </div>
+
+    </main>
+    </div>
+  </div>
+
+  <!-- Settings slide-over drawer (Settings / Newsletter / Agreements) -->
+  <div id="settingsDrawerOverlay" class="drawer-overlay hidden">
+    <div class="drawer">
+      <div class="drawer-header">
+        <div class="inner-nav" style="margin:0;">
+          <button class="tab-btn inner active" data-tab="settings">Settings</button>
+          <button class="tab-btn inner" data-tab="newsletter">Newsletter</button>
+          <button class="tab-btn inner" data-tab="agreements">Agreements</button>
+        </div>
+        <button class="btn-close" id="settingsDrawerClose">&times;</button>
+      </div>
+      <div class="drawer-body">
+
+        <!-- Settings -->
+        <section id="tab-settings" class="tab-panel active">
+          <div class="portal-card" style="max-width:520px; margin:0 0 24px;">
+            <div style="font-size:14px; font-weight:600;">New account notifications</div>
+            <p class="portal-sub" style="margin:0;">Get an email whenever someone creates their own owner account through the "sign up" link on the owner portal (accounts you create yourself in the Owners tab don't send a notification — you already know about those).</p>
+            <label>Notify this email<input type="email" id="notificationEmailInput" placeholder="you@example.com" /></label>
+            <div id="notificationEmailStatus" class="portal-sub" style="margin:0;"></div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn primary" id="saveNotificationEmailBtn">Save</button>
+            </div>
+          </div>
+
+          <div class="portal-card" style="max-width:520px; margin:0 0 24px;">
+            <div style="font-size:14px; font-weight:600;">Google review link</div>
+            <p class="portal-sub" style="margin:0;">Used by the "Send review request" button and the daily review-request script. Find yours by searching your business on Google, clicking "Ask for reviews," and copying the link.</p>
+            <label>Review link<input type="url" id="googleReviewUrlInput" placeholder="https://g.page/r/.../review" /></label>
+            <div id="reviewUrlStatus" class="portal-sub" style="margin:0;"></div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn primary" id="saveReviewUrlBtn">Save</button>
+            </div>
+          </div>
+
+          <div class="portal-card" style="max-width:520px; margin:0 0 24px;">
+            <div style="font-size:14px; font-weight:600;">AI (Ripple)</div>
+            <p class="portal-sub" style="margin:0;">Powers the daily briefing, visit summaries, payment nudges, team pulse, and sentiment reads throughout this dashboard. Without a key, every one of those features still works using plain-English templates instead — nothing breaks, it's just not AI-authored yet.</p>
+            <div id="aiStatusLine" class="portal-sub" style="margin:0; font-weight:600;">Checking…</div>
+            <p class="portal-sub" style="margin:0;">To turn it on: get a key at <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>, then add it as an environment variable named <code>ANTHROPIC_API_KEY</code> on your host (e.g. Render → your service → Environment). No key is ever entered here — it only ever lives in that environment variable.</p>
+          </div>
+
+          <div class="portal-card" style="max-width:520px; margin:0 0 24px;">
+            <div style="font-size:14px; font-weight:600;">Default service for auto-scheduled jobs</div>
+            <p class="portal-sub" style="margin:0;">Used to price a completed job when it was never linked to a specific service and there's no prior job for that home to go by — mainly auto-scheduled vacation-rental turnover cleanings and bulk-imported appointments, which don't have a "pick a service" step. Set this once and jobs like those will invoice automatically going forward. It never overrides a service you (or a form) picked on purpose.</p>
+            <label>Default service<select id="defaultServiceSelect"><option value="">None set — these jobs won't auto-invoice</option></select></label>
+            <div id="defaultServiceStatus" class="portal-sub" style="margin:0;"></div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn primary" id="saveDefaultServiceBtn">Save</button>
+            </div>
+          </div>
+
+          <div class="portal-card" style="max-width:520px; margin:0 0 24px;">
+            <div style="font-size:14px; font-weight:600;">Shop / depot address</div>
+            <p class="portal-sub" style="margin:0;">Daily schedules and weekly emails order each technician's stops into an efficient route starting from here.</p>
+            <label>Address<input type="text" id="depotAddressInput" /></label>
+            <div id="depotStatus" class="portal-sub" style="margin:0;"></div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn primary" id="saveDepotBtn">Save & locate</button>
+            </div>
+          </div>
+
+          <div class="portal-card" style="max-width:520px; margin:0;">
+            <div style="font-size:14px; font-weight:600;">Property locations</div>
+            <p class="portal-sub" style="margin:0;">Route ordering needs each property's address mapped to a location. Run this once, and again any time you add several new properties at once (editing a single property's address geocodes it automatically).</p>
+            <div id="geocodeStatus" class="portal-sub" style="margin:0;"></div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn primary" id="geocodeAllBtn">Geocode all addresses</button>
+            </div>
+          </div>
+
+          <div class="portal-card" style="max-width:520px; margin:24px 0 0;">
+            <div style="font-size:14px; font-weight:600;">Backup / export</div>
+            <p class="portal-sub" style="margin:0;">Download your data as spreadsheets any time — a safety net independent of the server.</p>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <a class="btn" href="/api/export/customers.csv">Homes CSV</a>
+              <a class="btn" href="/api/export/appointments.csv">Appointments CSV</a>
+              <a class="btn" href="/api/export/invoices.csv">Invoices CSV</a>
+            </div>
+            <div style="border-top:1px solid var(--border); padding-top:12px; margin-top:4px;">
+              <div class="portal-sub" style="margin:0 0 8px;">If the home list ever comes back empty (e.g. after a hosting change), this restores the built-in backup roster. Safe to click any time — it does nothing if homes already exist.</div>
+              <button class="btn" id="restoreCustomersBtn">Restore home list from backup</button>
+            </div>
+            <div style="border-top:1px solid var(--border); padding-top:12px; margin-top:4px;">
+              <div class="portal-sub" style="margin:0 0 8px;">Cleans up appointments accidentally created twice for the same home on the same day (e.g. from re-running a bulk import). Keeps the first one, removes the rest.</div>
+              <button class="btn" id="dedupeAppointmentsBtn">Remove duplicate appointments</button>
+            </div>
+            <div style="border-top:1px solid var(--border); padding-top:12px; margin-top:4px;">
+              <div class="portal-sub" style="margin:0 0 8px;">Paste a contact list to fill in phone numbers/emails for existing homes — only fills in blanks, never overwrites anything already on file.</div>
+              <button class="btn" id="bulkContactBtn">Update home contact info</button>
+            </div>
+            <div style="border-top:1px solid var(--border); padding-top:12px; margin-top:4px;">
+              <div class="portal-sub" style="margin:0 0 8px;">Paste a list of properties and their owners to create owner accounts and link them in one go — never overwrites an existing link.</div>
+              <button class="btn" id="bulkLinkOwnersBtn">Bulk create/link owners</button>
+            </div>
+          </div>
+
+          <div class="portal-card" style="max-width:520px; margin:24px 0 0;">
+            <div style="font-size:14px; font-weight:600;">Service catalog</div>
+            <p class="portal-sub" style="margin:0;">Standard services. Pick one on an appointment to speed up entry — and when a technician marks that job complete, a draft invoice is created automatically at the right price. A service can have one flat price, or vary by how often the home's serviced.</p>
+            <div id="servicesList" style="display:flex; flex-direction:column; gap:6px;"></div>
+            <div id="servicesError" class="portal-error hidden"></div>
+            <div style="border-top:1px solid var(--border); padding-top:12px; display:flex; flex-direction:column; gap:10px;">
+              <div id="serviceFormLabel" class="portal-sub" style="margin:0; font-weight:600; display:none;">Editing — Save to update, or Cancel</div>
+              <div style="display:flex; gap:10px; align-items:flex-end;">
+                <label style="flex:2;">Service name<input type="text" id="newServiceName" placeholder="e.g. Routine cleaning" /></label>
+                <label style="flex:1.4;">Pricing
+                  <select id="newServicePricingMode" onchange="onServicePricingModeChange()">
+                    <option value="flat">One flat price</option>
+                    <option value="frequency">Varies by service frequency</option>
+                  </select>
+                </label>
+              </div>
+              <div id="flatPriceWrap">
+                <label>Default price<input type="number" step="0.01" id="newServicePrice" placeholder="85.00" /></label>
+              </div>
+              <div id="frequencyPriceWrap" class="hidden" style="display:flex; gap:10px; flex-wrap:wrap;">
+                <label style="flex:1; min-width:110px;">Weekly $<input type="number" step="0.01" id="newServicePriceWeekly" placeholder="50.00" /></label>
+                <label style="flex:1; min-width:110px;">Biweekly $<input type="number" step="0.01" id="newServicePriceBiweekly" placeholder="55.00" /></label>
+                <label style="flex:1; min-width:110px;">Monthly $<input type="number" step="0.01" id="newServicePriceMonthly" placeholder="65.00" /></label>
+                <label style="flex:1; min-width:110px;">Vacation flat $<input type="number" step="0.01" id="newServicePriceVacation" placeholder="50.00" /></label>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn" id="addServiceBtn">+ Add service</button>
+                <button class="btn" id="cancelServiceEditBtn" style="display:none;">Cancel</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="portal-card" style="max-width:520px; margin:24px 0 0;">
+            <div style="font-size:14px; font-weight:600;">Upcharges / add-ons</div>
+            <p class="portal-sub" style="margin:0;">Small flat fees a technician can add to a job on the spot (e.g. grill cleaning, window spray) — added on top of that job's regular price on the invoice.</p>
+            <div id="addonsList" style="display:flex; flex-direction:column; gap:6px;"></div>
+            <div id="addonsError" class="portal-error hidden"></div>
+            <div style="border-top:1px solid var(--border); padding-top:12px; display:flex; gap:10px; align-items:flex-end;">
+              <label style="flex:2;">Upcharge name<input type="text" id="newAddonName" placeholder="e.g. Grill cleaning" /></label>
+              <label style="flex:1;">Price<input type="number" step="0.01" id="newAddonPrice" placeholder="10.00" /></label>
+              <button class="btn" id="addAddonBtn">+ Add</button>
+            </div>
+          </div>
+
+          <div class="portal-card" style="max-width:520px; margin:24px 0 0;">
+            <div style="font-size:14px; font-weight:600;">Admin accounts</div>
+            <p class="portal-sub" style="margin:0;">Anyone with one of these logins can see and edit everything in this dashboard.</p>
+            <div id="adminAccountsList" style="display:flex; flex-direction:column; gap:6px;"></div>
+            <div id="adminAccountsError" class="portal-error hidden"></div>
+            <div style="border-top:1px solid var(--border); padding-top:12px; display:flex; flex-direction:column; gap:12px;">
+              <label>Name<input type="text" id="newAdminName" /></label>
+              <label>Username<input type="text" id="newAdminUsername" autocomplete="off" /></label>
+              <label>Password (min. 8 characters)<input type="password" id="newAdminPassword" autocomplete="new-password" /></label>
+              <button class="btn" id="addAdminBtn" style="align-self:flex-start;">+ Add admin account</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Newsletter -->
+        <section id="tab-newsletter" class="tab-panel">
+          <div class="portal-card" style="max-width:640px; margin:0;">
+            <p class="portal-sub" style="margin:0;">Sends an email to every owner who's subscribed to updates (opted in via their portal, or by default from their signed waiver).</p>
+            <p style="margin:0; font-weight:600;"><span id="newsletterSubscriberCount">—</span> subscribed owner(s) will receive this.</p>
+            <div id="newsletterError" class="portal-error hidden"></div>
+            <div id="newsletterResult" class="portal-sub hidden" style="margin:0;"></div>
+            <label>Subject<input type="text" id="newsletterSubject" placeholder="e.g. Summer hours, a new feature, a seasonal tip" /></label>
+            <label>Message<textarea id="newsletterMessage" rows="10" placeholder="Write your update here..."></textarea></label>
+            <div style="display:flex; gap:8px;">
+              <button class="btn primary" id="sendNewsletterBtn">Send to subscribers</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Agreements -->
+        <section id="tab-agreements" class="tab-panel">
+          <p class="portal-sub" style="margin:0 0 12px;">Every owner and whether they've agreed to the Service Agreement & Terms of Service from their portal. Download a signed PDF copy — name, contact info, and the exact date/time they agreed — for your records.</p>
+          <div class="stat-cards" id="agreementStats"></div>
+          <div class="filter-row">
+            <label>Status
+              <select id="agreementStatusFilter">
+                <option value="all">All owners</option>
+                <option value="agreed">Agreed</option>
+                <option value="notAgreed">Not yet agreed</option>
+              </select>
+            </label>
+          </div>
+          <table class="data-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Properties</th><th>Status</th><th>Agreed on</th><th></th></tr></thead>
+            <tbody id="agreementsBody"></tbody>
+          </table>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div id="modalOverlay" class="modal-overlay hidden">
+    <div class="modal" id="modalBox">
+      <div class="modal-header">
+        <h2 id="modalTitle">Title</h2>
+        <button class="btn-close" id="modalClose">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <!-- Text preview modal -->
+  <div id="textModalOverlay" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="textModalTitle">Message</h2>
+        <button class="btn-close" id="textModalClose">&times;</button>
+      </div>
+      <div class="modal-body">
+        <textarea id="textModalContent" rows="10" readonly></textarea>
+        <button class="btn primary" id="copyTextBtn">Copy to clipboard</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
