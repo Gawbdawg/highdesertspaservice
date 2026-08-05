@@ -85,15 +85,26 @@ router.post('/request-code', async (req, res) => {
   const { email } = req.body;
   if (!email || !email.trim()) return res.status(400).json({ error: 'Email is required' });
   try {
-    await requestLoginCode('owners', email, { subjectPrefix: 'High Desert Spa Service', greetingName: 'there' });
+    const origin = `${req.protocol}://${req.get('host')}`;
+    await requestLoginCode('owners', email, {
+      subjectPrefix: 'High Desert Spa Service',
+      greetingName: 'there',
+      // If this email has no account, emailLogin.js emails a "create your account"
+      // link here instead of a code — see the comment on requestLoginCode.
+      signupUrl: `${origin}/owner.html?signup=1&email=${encodeURIComponent(email.trim())}`,
+    });
   } catch (err) {
     // Swallow send failures into the same generic response — see note below — but log
     // server-side so a broken email config (e.g. GMAIL_APP_PASSWORD not set) is visible.
     console.error('Failed to send owner login code:', err.message);
   }
-  // Always the same response whether or not the email matched an account, and whether
-  // or not sending actually succeeded — never reveals which emails are registered.
-  res.json({ sent: true, message: "If that email is on file, we've sent a login code to it." });
+  // Same response either way at the API level — never reveals which emails are
+  // registered to a caller of this endpoint. Which actual email lands in the inbox
+  // (a code, vs. a "create your account" link) is what differs now.
+  res.json({
+    sent: true,
+    message: "We've sent an email to that address — a login code if you have an account, or a link to create one if you don't.",
+  });
 });
 
 router.post('/verify-code', (req, res) => {

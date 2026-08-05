@@ -1,7 +1,7 @@
 const express = require('express');
 const store = require('../lib/store');
 const { requireOwnerAuth } = require('../lib/auth');
-const { syncCustomerCalendar } = require('../lib/icalSync');
+const { syncCustomerCalendar, guessLabel } = require('../lib/icalSync');
 const { maybeCreateCheckoutAppointment } = require('../lib/turnoverSchedule');
 const { geocodeAddress } = require('../lib/geocode');
 const { previewFrequencyPricing, maybeCreateCancellationFeeInvoice } = require('../lib/autoInvoice');
@@ -88,7 +88,11 @@ router.get('/briefing', async (req, res) => {
     .filter((r) => myPropertyIds.includes(r.customerId) && r.status === 'pending').length;
 
   const balanceDue = store.getAll('invoices')
-    .filter((i) => (i.ownerId === owner.id || myPropertyIds.includes(i.customerId)) && i.status !== 'paid' && i.status !== 'draft')
+    // status:'bundled' invoices are excluded here — they've been rolled up into a
+    // combined monthly invoice (see lib/monthlyInvoice.js) and would otherwise be
+    // double-counted alongside that combined invoice's own amount.
+    .filter((i) => (i.ownerId === owner.id || myPropertyIds.includes(i.customerId))
+      && i.status !== 'paid' && i.status !== 'draft' && i.status !== 'bundled')
     .reduce((sum, i) => sum + Number(i.amount || 0), 0);
 
   let lastVisitSummary = null;
@@ -638,11 +642,36 @@ router.post('/autopay/cancel', async (req, res) => {
 });
 
 // ---- iCal calendar auto-sync (per property) ----
+
+// Kept as-is for anything still calling it, but properties.icalUrls (below) is what
+// the owner portal UI actually uses now — a property can have more than one calendar
+// link (e.g. separate Airbnb and VRBO listings that don't sync with each other).
 router.put('/properties/:id/ical-url', (req, res) => {
   if (!myProperty(req, req.params.id)) return res.status(404).json({ error: 'Property not found' });
   const { icalUrl } = req.body;
   const updated = store.update('customers', req.params.id, { icalUrl: icalUrl || '' });
   res.json({ icalUrl: updated.icalUrl });
+});
+
+// Replaces the whole calendar-link list for a property in one go (that's how the
+// owner portal's "Save & sync now" button works — it always sends the full current
+// list). Assigns a stable id to any row that doesn't already have one, so a booking
+// synced from a given link can be traced back to it (and so overlap detection in
+// lib/icalSync.js can tell "two different platforms" from "the same platform twice").
+router.put('/properties/:id/ical-urls', (req, res) => {
+  if (!myProperty(req, req.params.id)) return res.status(404).json({ error: 'Property not found' });
+  const { icalUrls } = req.body;
+  if (!Array.isArray(icalUrls)) return res.status(400).json({ error: 'icalUrls must be an array' });
+  let nextId = Date.now();
+  const cleaned = icalUrls
+    .map((row) => ({
+      id: row && row.id ? row.id : nextId++,
+      url: row && row.url ? String(row.url).trim() : '',
+      label: row && row.label && String(row.label).trim() ? String(row.label).trim() : guessLabel(row && row.url),
+    }))
+    .filter((row) => row.url);
+  const updated = store.update('customers', req.params.id, { icalUrls: cleaned });
+  res.json({ icalUrls: updated.icalUrls });
 });
 
 router.post('/properties/:id/sync-calendar', async (req, res) => {

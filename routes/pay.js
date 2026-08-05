@@ -4,30 +4,30 @@
 const express = require('express');
 const store = require('../lib/store');
 const stripe = require('../lib/stripeClient');
+const { invoiceDescription } = require('../lib/invoiceDescription');
 const router = express.Router();
 
 router.get('/:id', (req, res) => {
   const invoice = store.getById('invoices', req.params.id);
   if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
-  if (invoice.ownerId) {
-    const owner = store.getById('owners', invoice.ownerId);
-    return res.json({
-      id: invoice.id,
-      amount: invoice.amount,
-      status: invoice.status,
-      dueDate: invoice.dueDate || '',
-      customerName: owner ? owner.name : '',
-      lineItems: invoice.lineItems || [],
-      stripeConfigured: stripe.isConfigured(),
-    });
-  }
-  const customer = store.getById('customers', invoice.customerId);
+
+  // customerId is set for every invoice that bills a specific property — including a
+  // per-property monthly bundle (see lib/monthlyInvoice.js), which also carries an
+  // ownerId just so payment/emailing resolves to the owner. Only a true owner-wide
+  // combined invoice (every property lumped together) has no customerId at all, so
+  // that's the only case that falls back to the owner's name here.
+  const customer = invoice.customerId ? store.getById('customers', invoice.customerId) : null;
+  const owner = invoice.ownerId ? store.getById('owners', invoice.ownerId) : null;
+  const customerName = customer ? customer.name : (owner ? owner.name : '');
+
   res.json({
     id: invoice.id,
     amount: invoice.amount,
     status: invoice.status,
     dueDate: invoice.dueDate || '',
-    customerName: customer ? customer.name : '',
+    customerName,
+    description: invoiceDescription(invoice),
+    lineItems: invoice.lineItems || [],
     bundledIntoInvoiceId: invoice.bundledIntoInvoiceId || null,
     stripeConfigured: stripe.isConfigured(),
   });

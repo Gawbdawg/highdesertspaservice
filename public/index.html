@@ -22,18 +22,25 @@
         <h1>Set up your admin account</h1>
         <p class="portal-sub" style="margin:0 0 6px;">This is the first time this dashboard has been opened — create the office login. You can add more admin accounts later from Settings.</p>
         <div id="adminSetupError" class="portal-error hidden"></div>
-        <label>Your name<input type="text" id="adminSetupName" /></label>
-        <label>Username<input type="text" id="adminSetupUsername" autocomplete="username" /></label>
-        <label>Password (min. 8 characters)<input type="password" id="adminSetupPassword" autocomplete="new-password" /></label>
-        <button class="btn primary" id="adminSetupBtn">Create account & log in</button>
+        <!-- Real <form> (not just a div) so Chrome/Safari/Firefox actually offer to
+             save these credentials and autofill them next time — see the matching
+             submit listener in app.js. -->
+        <form id="adminSetupForm">
+          <label>Your name<input type="text" id="adminSetupName" /></label>
+          <label>Username<input type="text" id="adminSetupUsername" autocomplete="username" /></label>
+          <label>Password (min. 8 characters)<input type="password" id="adminSetupPassword" autocomplete="new-password" /></label>
+          <button class="btn primary" type="submit" id="adminSetupBtn">Create account & log in</button>
+        </form>
       </section>
 
       <section id="adminLoginView" class="portal-card hidden">
         <h1>Office login</h1>
         <div id="adminLoginError" class="portal-error hidden"></div>
-        <label>Username<input type="text" id="adminLoginUsername" autocomplete="username" /></label>
-        <label>Password<input type="password" id="adminLoginPassword" autocomplete="current-password" /></label>
-        <button class="btn primary" id="adminLoginBtn">Log in</button>
+        <form id="adminLoginForm">
+          <label>Username<input type="text" id="adminLoginUsername" autocomplete="username" /></label>
+          <label>Password<input type="password" id="adminLoginPassword" autocomplete="current-password" /></label>
+          <button class="btn primary" type="submit" id="adminLoginBtn">Log in</button>
+        </form>
       </section>
     </main>
   </div>

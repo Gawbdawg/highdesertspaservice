@@ -2,14 +2,26 @@ const express = require('express');
 const store = require('../lib/store');
 const { sendEmail } = require('../lib/mailer');
 const ai = require('../lib/ai');
+const { invoiceDescription } = require('../lib/invoiceDescription');
 const router = express.Router();
 
 function money(n) {
   return '$' + Number(n || 0).toFixed(2);
 }
 
+// A combined invoice is any invoice with bundled-in lineItems (see
+// lib/monthlyInvoice.js) — that covers two different bundling scopes:
+//   - owner-wide: every property an owner has, rolled into one bill. No single
+//     customerId (it isn't any one property's invoice), so it's named after the owner
+//     plus a property count.
+//   - per-property: one property's jobs for the month, rolled into that property's own
+//     bill. customerId IS set (it's this property's invoice, same as any normal
+//     invoice) — an ownerId may also be set alongside it just so billing/autopay still
+//     resolves to the owner, but display-wise this should read as "this property's
+//     invoice," not "this owner's invoice."
 function enrich(inv) {
-  if (inv.ownerId) {
+  const hasLineItems = Array.isArray(inv.lineItems) && inv.lineItems.length > 0;
+  if (!inv.customerId && inv.ownerId) {
     const owner = store.getById('owners', inv.ownerId);
     const propertyCount = new Set((inv.lineItems || []).map((li) => li.customerId)).size;
     return {
@@ -19,7 +31,7 @@ function enrich(inv) {
     };
   }
   const customer = store.getById('customers', inv.customerId);
-  return { ...inv, customerName: customer ? customer.name : 'Unknown customer' };
+  return { ...inv, customerName: customer ? customer.name : 'Unknown customer', isCombined: hasLineItems };
 }
 
 router.get('/', (req, res) => {
@@ -57,23 +69,6 @@ router.put('/:id', (req, res) => {
 
 // Friendly description of what an invoice is billing for — used only in the "Email
 // invoice" note below, distinct from the raw line-item breakdown the admin sees in
-// "View jobs". A combined (owner-level) invoice summarizes the whole batch by date
-// range; a single invoice linked to a specific appointment names that job's service
-// type and date; anything else falls back to the invoice's own notes, or just says
-// when it was issued.
-function invoiceDescription(invoice) {
-  if (invoice.ownerId && (invoice.lineItems || []).length) {
-    const count = invoice.lineItems.length;
-    const dates = invoice.lineItems.map((li) => li.date).sort();
-    return `${count} service${count === 1 ? '' : 's'} completed between ${dates[0]} and ${dates[dates.length - 1]}`;
-  }
-  if (invoice.appointmentId) {
-    const appt = store.getById('appointments', invoice.appointmentId);
-    if (appt) return `${appt.serviceType || 'service'} on ${appt.date}`;
-  }
-  return invoice.notes ? invoice.notes : `service billed on ${invoice.issuedDate || 'file'}`;
-}
-
 // Who an invoice actually gets emailed to — the linked owner (if there is one) is
 // preferred over the home's own email even for a single-home invoice, since owners
 // are the billed party and a home often has no email on file at all (e.g. a vacation

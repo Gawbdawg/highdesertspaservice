@@ -14,13 +14,21 @@ const router = express.Router();
 //   - a standalone customer with no ownerId at all (most residential one-off homes) —
 //     shown as its own person using that home's own name/contact info.
 
+// An invoice counts toward "balance due" once it's been issued (not still a draft)
+// and hasn't been paid — EXCEPT status:'bundled' ones, which have been rolled up into
+// a combined monthly invoice (see lib/monthlyInvoice.js) and would otherwise get
+// double-counted here alongside that combined invoice's own amount.
+function isOutstanding(invoice) {
+  return invoice.status !== 'paid' && invoice.status !== 'draft' && invoice.status !== 'bundled';
+}
+
 function personIdFor(kind, id) {
   return `${kind}_${id}`;
 }
 
 function propertySummary(customer, invoices) {
   const balanceDue = invoices
-    .filter((i) => i.customerId === customer.id && i.status !== 'paid' && i.status !== 'draft')
+    .filter((i) => i.customerId === customer.id && isOutstanding(i))
     .reduce((sum, i) => sum + Number(i.amount || 0), 0);
   return {
     id: customer.id,
@@ -41,9 +49,19 @@ router.get('/', (req, res) => {
 
   owners.forEach((owner) => {
     const properties = customers.filter((c) => c.ownerId === owner.id);
-    const balanceDue = properties.reduce((sum, c) => sum + propertySummary(c, invoices).balanceDue, 0)
-      + invoices.filter((i) => i.ownerId === owner.id && i.status !== 'paid' && i.status !== 'draft')
-        .reduce((sum, i) => sum + Number(i.amount || 0), 0);
+    // Every property's own outstanding invoices — including a per-property monthly
+    // bundle, if this owner uses that billing scope (lib/monthlyInvoice.js), since
+    // those carry a customerId same as any normal invoice.
+    const propertiesTotal = properties.reduce((sum, c) => sum + propertySummary(c, invoices).balanceDue, 0);
+    // Plus any owner-WIDE combined invoice (every property bundled together —
+    // customerId is null on those, so the per-property sum above never sees them).
+    // Filtering on !i.customerId here is what keeps a per-property invoice (which also
+    // has ownerId set, just so payment resolves to the owner) from being counted a
+    // second time in this half of the sum.
+    const ownerWideTotal = invoices
+      .filter((i) => !i.customerId && i.ownerId === owner.id && isOutstanding(i))
+      .reduce((sum, i) => sum + Number(i.amount || 0), 0);
+    const balanceDue = propertiesTotal + ownerWideTotal;
     people.push({
       id: personIdFor('owner', owner.id),
       type: 'owner',
@@ -172,7 +190,7 @@ router.get('/:type/:id', async (req, res) => {
 
   const balanceDue = invoices
     .filter((i) => (propertyIds.includes(i.customerId) || (type === 'owner' && i.ownerId === Number(id)))
-      && i.status !== 'paid' && i.status !== 'draft')
+      && isOutstanding(i))
     .reduce((sum, i) => sum + Number(i.amount || 0), 0);
 
   res.json({

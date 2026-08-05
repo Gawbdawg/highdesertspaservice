@@ -21,9 +21,14 @@
       <section id="loginView" class="portal-card">
         <h1>Technician login</h1>
         <div id="loginError" class="portal-error hidden"></div>
-        <label>Username<input type="text" id="loginUsername" autocomplete="username" /></label>
-        <label>Password<input type="password" id="loginPassword" autocomplete="current-password" /></label>
-        <button class="btn primary" id="loginBtn">Log in</button>
+        <!-- Real <form> (not just a div) so Chrome/Safari/Firefox actually offer to
+             save these credentials and autofill them next time — see the matching
+             submit listener in tech.js. -->
+        <form id="loginForm">
+          <label>Username<input type="text" id="loginUsername" autocomplete="username" /></label>
+          <label>Password<input type="password" id="loginPassword" autocomplete="current-password" /></label>
+          <button class="btn primary" type="submit" id="loginBtn">Log in</button>
+        </form>
       </section>
 
       <!-- Jobs -->

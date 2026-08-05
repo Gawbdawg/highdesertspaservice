@@ -433,7 +433,8 @@ window.removePhoto = async (apptId, photoId) => {
   refreshTodayList();
 };
 
-document.getElementById('loginBtn').addEventListener('click', async () => {
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
   loginError.classList.add('hidden');
   const username = document.getElementById('loginUsername').value;
   const password = document.getElementById('loginPassword').value;
@@ -443,10 +444,6 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   } catch (e) {
     showError(e.message);
   }
-});
-
-document.getElementById('loginPassword').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') document.getElementById('loginBtn').click();
 });
 
 logoutBtn.addEventListener('click', async () => {

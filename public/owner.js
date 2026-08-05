@@ -51,7 +51,19 @@ async function checkSession() {
     termsView.classList.add('hidden');
     dashView.classList.add('hidden');
     logoutBtn.style.display = 'none';
+    maybeOpenSignupFromLink();
   }
+}
+
+// Lands someone straight on the sign-up form (with their email prefilled) when they
+// arrive via the "no account found" email's link — i.e. /owner.html?signup=1&email=...
+// See routes/ownerAuth.js's /request-code handler, which builds that link.
+function maybeOpenSignupFromLink() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('signup') !== '1') return;
+  document.getElementById('showSignupBtn').click();
+  const email = params.get('email');
+  if (email) document.getElementById('signupEmail').value = email;
 }
 
 // Routes a just-logged-in (or session-restored) owner to the Terms of Service gate if
@@ -202,7 +214,7 @@ function onPropertyChange() {
   if (!isVacation && activeTab === 'calendar') switchTab('overview');
   document.getElementById('bookingSectionPropertyName').textContent = properties.length > 1 ? `— ${p.name}` : '';
   if (isVacation) {
-    document.getElementById('icalUrlInput').value = p.icalUrl || '';
+    renderIcalRows(p);
     updateSyncStatus(p);
     const now = new Date();
     bookingCalMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -493,10 +505,58 @@ function niceDateShort(dateStr) {
 
 function updateSyncStatus(p) {
   const el = document.getElementById('icalSyncStatus');
+  const hasAnyLink = (Array.isArray(p.icalUrls) && p.icalUrls.length) || p.icalUrl;
   el.textContent = p.icalLastSyncedAt
     ? `Last synced ${new Date(p.icalLastSyncedAt).toLocaleString()}`
-    : (p.icalUrl ? 'Not synced yet — click "Save & sync now."' : '');
+    : (hasAnyLink ? 'Not synced yet — click "Save & sync now."' : '');
 }
+
+// ---- Calendar link rows (a property can have more than one — e.g. Airbnb + VRBO,
+// since those platforms don't sync with each other) ----
+
+let icalRowSeq = 0;
+
+// Renders one row per existing calendar link for the selected property. Falls back
+// to a single row seeded from the old single-URL field (customer.icalUrl) for
+// properties that predate multi-calendar support and haven't been touched since —
+// nothing is lost, it just shows up as their one existing link.
+function renderIcalRows(p) {
+  const rows = (Array.isArray(p.icalUrls) && p.icalUrls.length)
+    ? p.icalUrls
+    : (p.icalUrl ? [{ label: '', url: p.icalUrl }] : []);
+  const container = document.getElementById('icalUrlRows');
+  container.innerHTML = '';
+  if (rows.length === 0) {
+    addIcalRow('', '');
+  } else {
+    rows.forEach((r) => addIcalRow(r.label || '', r.url || ''));
+  }
+}
+
+function addIcalRow(label, url) {
+  const rowId = 'icalRow' + (icalRowSeq++);
+  const container = document.getElementById('icalUrlRows');
+  const row = document.createElement('div');
+  row.className = 'calendar-form-row';
+  row.id = rowId;
+  row.style.marginBottom = '8px';
+  row.innerHTML = `
+    <label style="max-width:160px;">Platform<input type="text" class="ical-label-input" placeholder="e.g. Airbnb" value="${(label || '').replace(/"/g, '&quot;')}" /></label>
+    <label style="flex:1; min-width:220px;">Calendar link (iCal URL)<input type="text" class="ical-url-input" placeholder="https://www.airbnb.com/calendar/ical/....ics" value="${(url || '').replace(/"/g, '&quot;')}" /></label>
+    <button class="btn small danger" type="button" onclick="removeIcalRow('${rowId}')">Remove</button>
+  `;
+  container.appendChild(row);
+}
+
+window.removeIcalRow = (rowId) => {
+  const row = document.getElementById(rowId);
+  if (row) row.remove();
+  // Always leave at least one (possibly empty) row so there's somewhere to type —
+  // saving with an all-empty row just clears that link, same as before.
+  if (!document.getElementById('icalUrlRows').children.length) addIcalRow('', '');
+};
+
+document.getElementById('addIcalRowBtn').addEventListener('click', () => addIcalRow('', ''));
 
 async function loadBookings() {
   const bookings = await api('/api/owner/bookings?propertyId=' + selectedPropertyId);
@@ -511,7 +571,10 @@ async function loadBookings() {
     <div class="owner-list-item" id="booking-row-${b.id}">
       <div>
         <strong>${niceDate(b.startDate)} – ${niceDate(b.endDate)}</strong>
-        ${b.source === 'ical' ? '<span class="badge sent">Auto-synced</span>' : '<span class="badge completed">Manual</span>'}
+        ${b.source === 'ical'
+          ? `<span class="badge sent">Auto-synced${b.icalSourceLabel ? ' — ' + b.icalSourceLabel : ''}</span>`
+          : '<span class="badge completed">Manual</span>'}
+        ${b.conflict ? '<span class="badge cancelled">⚠ Overlaps another calendar</span>' : ''}
         ${b.notes ? `<div class="job-meta">${b.notes}</div>` : ''}
       </div>
       <button class="btn small danger" onclick="deleteBooking(${b.id})">Remove</button>
@@ -617,10 +680,13 @@ function renderBookingGanttGrid() {
       const top = barTopBase + seg.lane * laneHeight;
       const roundClass = `${seg.isActualStart ? 'round-start' : ''} ${seg.isActualEnd ? 'round-end' : ''}`;
       const manualClass = b.source === 'ical' ? '' : 'gantt-bar-manual';
+      const conflictClass = b.conflict ? 'gantt-bar-conflict' : '';
       const bg = bookingColor(b.id);
-      const title = `${label} — ${niceDate(b.startDate)} to ${niceDate(b.endDate)}`.replace(/"/g, '&quot;');
-      return `<div class="gantt-bar ${manualClass} ${roundClass}" style="left:${left}%; width:${width}%; top:${top}px; background:${bg};" title="${title}" onclick="highlightBookingRow(${b.id})">
-        <span class="gantt-bar-label">${label.replace(/</g, '&lt;')}</span>
+      const sourceNote = b.icalSourceLabel ? ` (${b.icalSourceLabel})` : '';
+      const conflictNote = b.conflict ? ' — ⚠ overlaps another calendar, possible double-booking' : '';
+      const title = `${label}${sourceNote} — ${niceDate(b.startDate)} to ${niceDate(b.endDate)}${conflictNote}`.replace(/"/g, '&quot;');
+      return `<div class="gantt-bar ${manualClass} ${conflictClass} ${roundClass}" style="left:${left}%; width:${width}%; top:${top}px; background:${bg};" title="${title}" onclick="highlightBookingRow(${b.id})">
+        <span class="gantt-bar-label">${b.conflict ? '⚠ ' : ''}${label.replace(/</g, '&lt;')}</span>
       </div>`;
     }).join('');
 
@@ -827,22 +893,40 @@ window.deleteRequest = async (id) => {
 };
 
 document.getElementById('saveIcalBtn').addEventListener('click', async () => {
-  const icalUrl = document.getElementById('icalUrlInput').value.trim();
+  const rows = Array.from(document.querySelectorAll('#icalUrlRows .calendar-form-row'))
+    .map((row) => ({
+      label: row.querySelector('.ical-label-input').value.trim(),
+      url: row.querySelector('.ical-url-input').value.trim(),
+    }))
+    .filter((r) => r.url);
+
   const statusEl = document.getElementById('icalSyncStatus');
   const btn = document.getElementById('saveIcalBtn');
   btn.disabled = true;
   statusEl.textContent = 'Saving and syncing…';
   try {
-    await api(`/api/owner/properties/${selectedPropertyId}/ical-url`, { method: 'PUT', body: JSON.stringify({ icalUrl }) });
+    const saved = await api(`/api/owner/properties/${selectedPropertyId}/ical-urls`, {
+      method: 'PUT',
+      body: JSON.stringify({ icalUrls: rows }),
+    });
     const p = selectedProperty();
-    p.icalUrl = icalUrl;
-    if (icalUrl) {
+    p.icalUrls = saved.icalUrls;
+    if (rows.length) {
       const result = await api(`/api/owner/properties/${selectedPropertyId}/sync-calendar`, { method: 'POST' });
-      statusEl.textContent = `Synced — found ${result.count} booked date range${result.count === 1 ? '' : 's'}.`;
+      const bySourceText = result.sources.map((s) => `${s.label}: ${s.count}`).join(', ');
+      let msg = `Synced — found ${result.count} booked date range${result.count === 1 ? '' : 's'} (${bySourceText}).`;
+      if (result.failedSources && result.failedSources.length) {
+        msg += ` Couldn't reach: ${result.failedSources.map((f) => f.label).join(', ')}.`;
+      }
+      if (result.conflictCount) {
+        msg += ` ⚠ ${result.conflictCount} date${result.conflictCount === 1 ? '' : 's'} overlap between two calendars — check for a double-booking below.`;
+      }
+      statusEl.textContent = msg;
       p.icalLastSyncedAt = new Date().toISOString();
     } else {
-      statusEl.textContent = 'Calendar link removed.';
+      statusEl.textContent = 'Calendar links removed.';
     }
+    renderIcalRows(p);
     loadBookings();
   } catch (e) {
     statusEl.textContent = `Couldn't sync: ${e.message}`;
@@ -1140,7 +1224,10 @@ document.getElementById('svcCalTodayBtn').addEventListener('click', () => {
   renderOwnerCalendarGrid();
 });
 
-document.getElementById('loginBtn').addEventListener('click', async () => {
+// A real form submit (rather than a plain button click) is what makes the browser's
+// password manager offer to save these credentials and autofill them next visit.
+document.getElementById('passwordLoginFields').addEventListener('submit', async (e) => {
+  e.preventDefault();
   loginError.classList.add('hidden');
   const username = document.getElementById('loginUsername').value;
   const password = document.getElementById('loginPassword').value;
@@ -1150,10 +1237,6 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
   } catch (e) {
     showError(e.message);
   }
-});
-
-document.getElementById('loginPassword').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') document.getElementById('loginBtn').click();
 });
 
 document.getElementById('togglePasswordLoginBtn').addEventListener('click', () => {
@@ -1191,9 +1274,9 @@ async function sendLoginCode() {
   }
 }
 
-document.getElementById('sendCodeBtn').addEventListener('click', sendLoginCode);
-document.getElementById('codeEmail').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') sendLoginCode();
+document.getElementById('codeLoginStep1').addEventListener('submit', (e) => {
+  e.preventDefault();
+  sendLoginCode();
 });
 
 document.getElementById('resendCodeBtn').addEventListener('click', async () => {
@@ -1218,9 +1301,9 @@ async function verifyLoginCode() {
   }
 }
 
-document.getElementById('verifyCodeBtn').addEventListener('click', verifyLoginCode);
-document.getElementById('codeInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') verifyLoginCode();
+document.getElementById('codeLoginStep2').addEventListener('submit', (e) => {
+  e.preventDefault();
+  verifyLoginCode();
 });
 
 logoutBtn.addEventListener('click', async () => {
@@ -1242,7 +1325,8 @@ document.getElementById('backToLoginBtn').addEventListener('click', () => {
   loginView.classList.remove('hidden');
 });
 
-document.getElementById('createAccountBtn').addEventListener('click', async () => {
+document.getElementById('signupForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
   const errEl = document.getElementById('signupError');
   errEl.classList.add('hidden');
   const name = document.getElementById('signupName').value.trim();
@@ -1269,10 +1353,6 @@ document.getElementById('createAccountBtn').addEventListener('click', async () =
   } finally {
     btn.disabled = false;
   }
-});
-
-document.getElementById('signupPassword').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') document.getElementById('createAccountBtn').click();
 });
 
 // ---- Newsletter opt in/out ----

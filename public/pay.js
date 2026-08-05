@@ -27,13 +27,22 @@ function lineItemsHtml(invoice) {
   `;
 }
 
+// What this invoice is for — service name + date for a single job, or a summary of
+// the batch for a combined (owner-wide or per-property monthly) invoice. Shown right
+// under the amount so it's the first thing anyone paying (or an owner glancing at it)
+// sees, instead of just a bare dollar figure with no context.
+function descriptionHtml(invoice) {
+  if (!invoice.description) return '';
+  return `<p class="portal-sub" style="margin:2px 0 0;">${invoice.description}</p>`;
+}
+
 function render(invoice) {
   const amount = Number(invoice.amount).toFixed(2);
 
   if (invoice.status === 'paid' || params.get('paid') === '1') {
     card.innerHTML = `
       <h1>Thanks!</h1>
-      <p class="portal-sub">This invoice for $${amount} has been paid. We appreciate your business.</p>
+      <p class="portal-sub">This invoice for $${amount}${invoice.description ? ` (${invoice.description})` : ''} has been paid. We appreciate your business.</p>
     `;
     return;
   }
@@ -52,6 +61,7 @@ function render(invoice) {
     card.innerHTML = `
       <h1>Invoice #${invoice.id}</h1>
       <p class="portal-sub">${invoice.customerName ? invoice.customerName + ' — ' : ''}Amount due: $${amount}${invoice.dueDate ? ` (due ${invoice.dueDate})` : ''}</p>
+      ${descriptionHtml(invoice)}
       ${lineItemsHtml(invoice)}
       <p class="portal-sub">Online payment isn't turned on yet — please contact High Desert Spa Service to arrange payment.</p>
     `;
@@ -61,6 +71,7 @@ function render(invoice) {
   card.innerHTML = `
     <h1>Invoice #${invoice.id}</h1>
     <p class="portal-sub">${invoice.customerName ? invoice.customerName + ' — ' : ''}Amount due: $${amount}${invoice.dueDate ? ` (due ${invoice.dueDate})` : ''}</p>
+    ${descriptionHtml(invoice)}
     ${lineItemsHtml(invoice)}
     <div id="payError" class="portal-error hidden"></div>
     <button class="btn primary" id="payBtn">Pay $${amount} now</button>

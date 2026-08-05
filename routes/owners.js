@@ -52,7 +52,7 @@ router.get('/:id/agreement.pdf', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name, email, phone, username, password, customPricing, billingMode, newsletterSubscribed } = req.body;
+  const { name, email, phone, username, password, customPricing, billingMode, monthlyBundleScope, newsletterSubscribed } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
   if (username) {
     const existing = store.getAll('owners').find((o) => (o.username || '').toLowerCase() === username.toLowerCase());
@@ -72,6 +72,12 @@ router.post('/', (req, res) => {
     passwordHash: password ? hashPassword(password) : '',
     customPricing: cleanedPricing,
     billingMode: billingMode === 'monthly' ? 'monthly' : 'perJob',
+    // Only meaningful when billingMode is 'monthly' — 'owner' (default) bundles every
+    // property this owner has into one combined bill each month, same as monthly
+    // billing has always worked. 'property' instead bundles each property separately,
+    // so an owner with several houses gets one invoice per house — see
+    // lib/monthlyInvoice.js.
+    monthlyBundleScope: monthlyBundleScope === 'property' ? 'property' : 'owner',
     // Defaults to subscribed since the plan is to collect this consent as part of the
     // owner's signed waiver going forward. Admin can flip it off per-owner (or right
     // here at creation), and owners can also unsubscribe themselves from their portal.
@@ -104,6 +110,9 @@ router.put('/:id', (req, res) => {
   if (password) updates.passwordHash = hashPassword(password);
   if (req.body.billingMode !== undefined) {
     updates.billingMode = req.body.billingMode === 'monthly' ? 'monthly' : 'perJob';
+  }
+  if (req.body.monthlyBundleScope !== undefined) {
+    updates.monthlyBundleScope = req.body.monthlyBundleScope === 'property' ? 'property' : 'owner';
   }
   // customPricing: { [serviceId]: price } — per-owner price overrides, covering every
   // property linked to this owner. A missing/blank entry falls back to that service's
@@ -316,13 +325,17 @@ router.post('/bulk-link-from-text', (req, res) => {
 });
 
 // Bundles this owner's already-created individual draft invoices for the given month
-// (YYYY-MM, in req.body) into one combined invoice — see lib/monthlyInvoice.js. Safe to
-// re-run — an invoice already bundled never gets included twice.
+// (YYYY-MM, in req.body) into one combined invoice — or one combined invoice per
+// property, if this owner's monthlyBundleScope is 'property'. See
+// lib/monthlyInvoice.js. Safe to re-run — an invoice already bundled never gets
+// included twice. Always returns an array under `invoices` (1 item for the normal
+// owner-wide bundle, 0-N for per-property, since some properties may have nothing to
+// bill that month) so the admin UI doesn't need to know which scope this owner uses.
 router.post('/:id/generate-monthly-invoice', (req, res) => {
   try {
-    const invoice = generateMonthlyInvoiceForOwner(req.params.id, req.body.month);
-    if (!invoice) return res.json({ created: false, message: 'Nothing to bill for that month.' });
-    res.status(201).json({ created: true, invoice });
+    const invoices = generateMonthlyInvoiceForOwner(req.params.id, req.body.month);
+    if (!invoices.length) return res.json({ created: false, message: 'Nothing to bill for that month.' });
+    res.status(201).json({ created: true, invoices });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
