@@ -9,6 +9,7 @@
 // verification needs the exact, untouched request body bytes.
 const store = require('../lib/store');
 const stripe = require('../lib/stripeClient');
+const waveSync = require('../lib/waveSync');
 
 // Once an owner completes the hosted Checkout "save a card" page, this looks up the
 // SetupIntent Stripe just finished (which the webhook payload only gives us the id
@@ -77,6 +78,7 @@ function handleInvoicePaymentCompleted(session) {
         paidAt: new Date().toISOString(),
       });
       console.log(`Invoice #${invoiceId} marked paid via Stripe (session ${session.id}).`);
+      waveSync.recordWavePayment(invoiceId).catch(() => {});
     }
   } else {
     console.warn('Stripe checkout.session.completed had no invoice reference — ignoring.');

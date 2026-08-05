@@ -3,6 +3,7 @@ const store = require('../lib/store');
 const { sendEmail } = require('../lib/mailer');
 const ai = require('../lib/ai');
 const { invoiceDescription } = require('../lib/invoiceDescription');
+const waveSync = require('../lib/waveSync');
 const router = express.Router();
 
 function money(n) {
@@ -60,10 +61,20 @@ router.post('/', (req, res) => {
 });
 
 router.put('/:id', (req, res) => {
+  const before = store.getById('invoices', req.params.id);
   const updates = { ...req.body };
   if (updates.amount !== undefined) updates.amount = Number(updates.amount);
   const updated = store.update('invoices', req.params.id, updates);
   if (!updated) return res.status(404).json({ error: 'Invoice not found' });
+  // Push to Wave (if configured — see lib/waveSync.js) the moment this invoice is
+  // actually billed or paid, not on every edit. Fire-and-forget: a Wave hiccup
+  // should never block saving the invoice itself.
+  if (before && before.status !== 'sent' && updated.status === 'sent') {
+    waveSync.pushInvoiceToWave(updated.id).catch(() => {});
+  }
+  if (before && before.status !== 'paid' && updated.status === 'paid') {
+    waveSync.recordWavePayment(updated.id).catch(() => {});
+  }
   res.json(enrich(updated));
 });
 
@@ -128,6 +139,7 @@ High Desert Spa Service`;
     });
     if (invoice.status === 'draft') {
       store.update('invoices', invoice.id, { status: 'sent' });
+      waveSync.pushInvoiceToWave(invoice.id).catch(() => {});
     }
     res.json({ sent: true, dryRun: !!result.dryRun, to: recipient.email });
   } catch (err) {
