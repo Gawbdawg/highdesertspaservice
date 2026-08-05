@@ -560,8 +560,13 @@ function customerForm(c = {}) {
   const eq = c.equipment || {};
   const owner = c.ownerId ? state.owners.find((o) => o.id === c.ownerId) : null;
   const homePricing = c.customPricing || {};
-  const pricingRows = state.services.length
-    ? state.services.map((s) => {
+  // Custom pricing here is a negotiated rate for the regular recurring "clean" — the
+  // service priced by visit frequency (weekly/biweekly/monthly). Flat-priced catalog
+  // entries like "Diagnostic Visit" always bill at their own listed price, so there's
+  // no override field for them here (see lib/autoInvoice.js#resolvePrice).
+  const frequencyServices = state.services.filter((s) => s.pricingMode === 'frequency');
+  const pricingRows = frequencyServices.length
+    ? frequencyServices.map((s) => {
         const ownerRate = owner && owner.customPricing ? owner.customPricing[s.id] : undefined;
         const context = [`catalog: ${serviceFreqSummary(s)}`];
         if (ownerRate !== undefined) context.push(`owner default: ${money(ownerRate)}`);
@@ -572,7 +577,7 @@ function customerForm(c = {}) {
           </label>
         `;
       }).join('')
-    : '<div class="portal-hint" style="margin:0;">Add services in Settings → Service catalog first, then come back here to set this home\'s custom prices.</div>';
+    : '<div class="portal-hint" style="margin:0;">Add a frequency-priced service in Settings → Service catalog first, then come back here to set this home\'s custom price for it.</div>';
   return `
     <label>Name<input id="f_name" value="${c.name || ''}" /></label>
     <label>Type
@@ -821,7 +826,7 @@ function readCustomerForm() {
     data.ownerId = ownerSelectVal || null;
   }
   const customPricing = {};
-  state.services.forEach((s) => {
+  state.services.filter((s) => s.pricingMode === 'frequency').forEach((s) => {
     const el = document.getElementById(`f_hprice_${s.id}`);
     if (el && el.value !== '') customPricing[s.id] = el.value;
   });
@@ -1087,14 +1092,18 @@ function ownerTypeBadges(propertyTypes) {
 
 function ownerForm(o = {}) {
   const pricing = o.customPricing || {};
-  const pricingRows = state.services.length
-    ? state.services.map((s) => `
+  // Same scope restriction as the home-level pricing panel: only the frequency-priced
+  // "clean" service gets a custom-rate override here. Flat-priced entries like
+  // Diagnostic Visit always bill at their catalog price.
+  const frequencyServices = state.services.filter((s) => s.pricingMode === 'frequency');
+  const pricingRows = frequencyServices.length
+    ? frequencyServices.map((s) => `
         <label style="flex-direction:row; align-items:center; justify-content:space-between; gap:10px;">
           <span>${s.name} <span style="color:var(--text-faint); font-weight:400;">(catalog: ${money(s.defaultPrice)})</span></span>
           <input type="number" step="0.01" style="width:110px;" id="f_price_${s.id}" value="${pricing[s.id] !== undefined ? pricing[s.id] : ''}" placeholder="default" />
         </label>
       `).join('')
-    : '<div class="portal-hint" style="margin:0;">Add services in Settings → Service catalog first, then come back here to set this owner\'s custom prices.</div>';
+    : '<div class="portal-hint" style="margin:0;">Add a frequency-priced service in Settings → Service catalog first, then come back here to set this owner\'s custom price for it.</div>';
   return `
     <label>Name (required)<input id="f_oname" value="${o.name || ''}" /></label>
     <label>Phone<input id="f_ophone" value="${o.phone || ''}" /></label>
@@ -1142,7 +1151,7 @@ window.toggleOwnerBundleScope = () => {
 
 function readOwnerForm() {
   const customPricing = {};
-  state.services.forEach((s) => {
+  state.services.filter((s) => s.pricingMode === 'frequency').forEach((s) => {
     const el = document.getElementById(`f_price_${s.id}`);
     if (el && el.value !== '') customPricing[s.id] = el.value;
   });
