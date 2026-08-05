@@ -57,13 +57,21 @@ function render(invoice) {
     return;
   }
 
+  // High Desert doesn't use Stripe — Wave is the actual payment path here. If this
+  // invoice has synced to Wave and Wave Payments is turned on for that business,
+  // waveViewUrl (see lib/waveSync.js) is a real page a customer can pay on. If it
+  // hasn't synced yet (or Wave isn't configured at all), fall back to a plain
+  // "contact us" message rather than implying something's broken.
   if (!invoice.stripeConfigured) {
+    const payAction = invoice.waveViewUrl
+      ? `<a class="btn primary" href="${invoice.waveViewUrl}" target="_blank" rel="noopener noreferrer">Pay online</a>`
+      : `<p class="portal-sub">Please contact High Desert Spa Service to arrange payment.</p>`;
     card.innerHTML = `
       <h1>Invoice #${invoice.id}</h1>
       <p class="portal-sub">${invoice.customerName ? invoice.customerName + ' — ' : ''}Amount due: $${amount}${invoice.dueDate ? ` (due ${invoice.dueDate})` : ''}</p>
       ${descriptionHtml(invoice)}
       ${lineItemsHtml(invoice)}
-      <p class="portal-sub">Online payment isn't turned on yet — please contact High Desert Spa Service to arrange payment.</p>
+      ${payAction}
     `;
     return;
   }

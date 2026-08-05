@@ -30,6 +30,11 @@ router.get('/:id', (req, res) => {
     lineItems: invoice.lineItems || [],
     bundledIntoInvoiceId: invoice.bundledIntoInvoiceId || null,
     stripeConfigured: stripe.isConfigured(),
+    // Wave's own hosted invoice page (see lib/waveSync.js) — if the business
+    // has Wave Payments turned on, a customer can pay right there. Preferred
+    // over Stripe checkout when both happen to be present, since Stripe isn't
+    // actually configured/used on High Desert.
+    waveViewUrl: invoice.waveViewUrl || null,
   });
 });
 
