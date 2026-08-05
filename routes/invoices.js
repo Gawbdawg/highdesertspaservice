@@ -189,6 +189,20 @@ router.post('/:id/send-nudge', async (req, res) => {
   }
 });
 
+// Manual retry for an invoice that previously failed to sync to Wave (see
+// waveBadge()/waveSyncError in the admin UI) — e.g. after fixing a config issue
+// like a wrong WAVE_BUSINESS_ID, there'd otherwise be no way to re-trigger the
+// sync short of bouncing the invoice's status back and forth. Safe to call on
+// any invoice; a no-op if Wave isn't configured or the invoice already synced.
+router.post('/:id/retry-wave-sync', async (req, res) => {
+  const invoice = store.getById('invoices', req.params.id);
+  if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+  await waveSync.pushInvoiceToWave(invoice.id);
+  if (invoice.status === 'paid') await waveSync.recordWavePayment(invoice.id);
+  const updated = store.getById('invoices', invoice.id);
+  res.json(enrich(updated));
+});
+
 router.delete('/:id', (req, res) => {
   // Deleting a combined monthly invoice shouldn't strand the individual invoices it
   // bundled — un-bundle them back to 'draft' so they're immediately visible and
