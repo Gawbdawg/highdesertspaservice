@@ -57,8 +57,9 @@ router.post('/signup', (req, res) => {
     signupSource: 'self',
   });
   req.session.ownerId = owner.id;
+  req.session.viaAdminView = false;
   notifyAdminNewAccount({ type: 'owner', name: owner.name, email: owner.email, phone: owner.phone });
-  res.status(201).json(sanitizeOwner(owner));
+  res.status(201).json({ ...sanitizeOwner(owner), viaAdminView: false });
 });
 
 router.post('/login', (req, res) => {
@@ -73,7 +74,8 @@ router.post('/login', (req, res) => {
     return res.status(401).json({ error: 'Incorrect username or password' });
   }
   req.session.ownerId = owner.id;
-  res.json(sanitizeOwner(owner));
+  req.session.viaAdminView = false;
+  res.json({ ...sanitizeOwner(owner), viaAdminView: false });
 });
 
 // ---- Email + code login (no password needed — most owner accounts are bulk-created
@@ -100,16 +102,23 @@ router.post('/verify-code', (req, res) => {
   const owner = verifyLoginCode('owners', email, code);
   if (!owner) return res.status(401).json({ error: 'That code is incorrect or has expired — request a new one.' });
   req.session.ownerId = owner.id;
-  res.json(sanitizeOwner(owner));
+  req.session.viaAdminView = false;
+  res.json({ ...sanitizeOwner(owner), viaAdminView: false });
 });
 
-// Lets a logged-in admin jump straight into an owner's portal view without
-// needing that owner's password.
+// Lets a logged-in admin jump straight into an owner's portal view without needing
+// that owner's password. Sets viaAdminView on the session so the frontend skips the
+// first-login Terms of Service gate for this visit (see enterPortal() in owner.js) —
+// without that, an admin peeking into an owner who hasn't agreed yet would get stuck
+// at the gate, and clicking through it would falsely record the OWNER as having
+// agreed to the rental agreement when really it was staff just looking around. The
+// owner's own agreedToTerms field is never touched here.
 router.post('/admin-view/:id', requireAdminAuth, (req, res) => {
   const owner = store.getById('owners', req.params.id);
   if (!owner) return res.status(404).json({ error: 'Owner not found' });
   req.session.ownerId = owner.id;
-  res.json(sanitizeOwner(owner));
+  req.session.viaAdminView = true;
+  res.json({ ...sanitizeOwner(owner), viaAdminView: true });
 });
 
 router.post('/logout', (req, res) => {
@@ -126,7 +135,7 @@ router.get('/me', (req, res) => {
     req.session = null;
     return res.status(401).json({ error: 'Not logged in' });
   }
-  res.json(sanitizeOwner(owner));
+  res.json({ ...sanitizeOwner(owner), viaAdminView: !!req.session.viaAdminView });
 });
 
 module.exports = router;
