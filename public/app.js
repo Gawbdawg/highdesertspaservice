@@ -2080,7 +2080,10 @@ function renderInvoiceStats() {
 // actually working (or why it isn't) without checking Wave itself.
 function waveBadge(i) {
   if (i.waveInvoiceId) return ' <span class="badge completed" title="Synced to Wave">Wave \u2713</span>';
-  if (i.waveSyncError) return ` <span class="badge cancelled" title="${i.waveSyncError.replace(/"/g, '&quot;')}">Wave sync failed</span>`;
+  if (i.waveSyncError) {
+    const msg = i.waveSyncError.replace(/</g, '&lt;');
+    return ` <span class="badge cancelled" title="${i.waveSyncError.replace(/"/g, '&quot;')}">Wave sync failed</span><div style="font-size:11px; color:#a33; margin-top:2px; max-width:260px;">${msg}</div>`;
+  }
   return '';
 }
 
