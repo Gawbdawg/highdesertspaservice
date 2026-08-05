@@ -158,7 +158,7 @@ function chemFormHtml(j) {
         <label style="flex:1; min-width:90px;">pH<input type="number" step="0.1" min="0" id="chem_ph_${j.id}" value="${j.ph || ''}" /></label>
         <label style="flex:1; min-width:90px;">Alkalinity (ppm)<input type="number" step="1" min="0" id="chem_ta_${j.id}" value="${j.alkalinity || ''}" /></label>
       </div>
-      <label>Notes <span style="font-weight:400; color:#7a8f97;">(shows up in the office's and owner's visit history)</span><textarea id="chem_notes_${j.id}" rows="2" placeholder="Anything worth flagging">${j.notes || ''}</textarea></label>
+      <label>Service note <span style="font-weight:400; color:#7a8f97;">(the owner sees this exact text — good place for a recommendation)</span><textarea id="chem_notes_${j.id}" rows="2" placeholder="e.g. Spa shocked, recommend drain and fill next service">${j.notes || ''}</textarea></label>
       <div style="display:flex; gap:8px; margin-top:6px;">
         <button class="btn primary small" onclick="saveChemistry(${j.id})">Save water test</button>
         <button class="btn small" onclick="toggleChemForm(${j.id})">Close</button>

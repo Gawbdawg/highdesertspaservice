@@ -94,17 +94,23 @@ router.get('/briefing', async (req, res) => {
   let lastVisitSummary = null;
   if (lastCompleted) {
     const property = store.getById('customers', lastCompleted.customerId);
+    // Owners only ever see the tech's plain notes, never the raw chemistry readings
+    // (chlorine/pH/alkalinity) — those are operational numbers for office/tech use,
+    // not something a property owner needs or wants a dashboard reading out to them.
     const summary = await ai.generateVisitSummary({
       notes: lastCompleted.notes || '',
-      chlorine: lastCompleted.chlorine || '',
-      ph: lastCompleted.ph || '',
-      alkalinity: lastCompleted.alkalinity || '',
-    });
+    }, { forOwner: true });
     lastVisitSummary = {
       date: lastCompleted.date,
       propertyName: property ? property.name : '',
       text: summary.text,
       aiGenerated: summary.aiGenerated,
+      // The tech's note verbatim, not run through AI paraphrasing — a specific
+      // recommendation like "spa shocked, recommend drain and fill next service"
+      // needs to reach the owner exactly as written, not softened or dropped by a
+      // summarizer. Shown alongside the AI summary line in the owner portal, not
+      // instead of it. Empty string (not omitted) when there's nothing on file.
+      note: lastCompleted.notes || '',
     };
   }
 
@@ -408,6 +414,11 @@ router.get('/appointments', (req, res) => {
         propertyName: property ? property.name : 'Unknown property',
         addons: a.addons || [],
         photos: (a.photos || []).map((p) => ({ id: p.id, type: p.type, url: p.url })),
+        // The tech's own note for this visit, verbatim — e.g. "spa shocked,
+        // recommend drain and fill next service." Only surfaced once a visit is
+        // completed. Chemistry readings are deliberately never included here — same
+        // office-only boundary as the Home tab's briefing card.
+        note: a.status === 'completed' ? (a.notes || '') : '',
       };
     })
     .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));

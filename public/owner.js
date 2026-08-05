@@ -184,7 +184,8 @@ async function loadBriefing() {
     textEl.textContent = data.briefing.text;
     if (data.lastVisitSummary) {
       const v = data.lastVisitSummary;
-      lastVisitEl.innerHTML = `<strong>Last visit</strong> (${niceDateShort(v.date)}${properties.length > 1 && v.propertyName ? ' — ' + v.propertyName : ''}): ${v.text}`;
+      lastVisitEl.innerHTML = `<strong>Last visit</strong> (${niceDateShort(v.date)}${properties.length > 1 && v.propertyName ? ' — ' + v.propertyName : ''}): ${v.text}`
+        + (v.note ? `<div class="tech-note-callout"><strong>Note from your technician:</strong> ${v.note}</div>` : '');
       lastVisitEl.classList.remove('hidden');
     } else {
       lastVisitEl.classList.add('hidden');
@@ -670,6 +671,7 @@ async function loadVisits() {
         ${v.serviceType ? `<div class="job-meta">${v.serviceType}</div>` : ''}
       </div>
       ${v.status === 'scheduled' ? renderVisitAddons(v) : (v.addons && v.addons.length ? `<div class="job-meta">Extras: ${v.addons.map((a) => `${a.name} ($${Number(a.price).toFixed(2)})`).join(', ')}</div>` : '')}
+      ${v.note ? `<div class="tech-note-callout"><strong>Note from your technician:</strong> ${v.note}</div>` : ''}
       ${renderVisitPhotos(v)}
       ${v.status === 'scheduled' ? `<button class="btn small danger" style="margin-top:8px;" onclick="cancelVisit(${v.id}, '${v.date}', '${v.startTime || ''}')">Cancel service</button>` : ''}
     </div>

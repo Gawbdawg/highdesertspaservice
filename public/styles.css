@@ -396,6 +396,16 @@ textarea { width: 100%; resize: vertical; }
 .visit-item .visit-summary { font-size: 13px; color: var(--text-muted); margin-top: 3px; }
 .dose-chip { display: inline-block; background: #f0eefc; color: #5b3fae; font-size: 12px; padding: 3px 9px; border-radius: 7px; margin: 3px 6px 0 0; }
 
+/* A tech's on-site note/recommendation, shown to the owner verbatim (not AI-paraphrased)
+   — e.g. "spa shocked, recommend drain and fill next service." Distinct box so a
+   specific actionable recommendation doesn't get lost inside the AI summary text next
+   to it. Used on both the Home tab's Last Visit card and the Services history list. */
+.tech-note-callout {
+  margin-top: 8px; padding: 8px 11px; background: #fef3e0; color: #7a5310;
+  border-left: 3px solid #d97706; border-radius: 6px; font-size: 13px; line-height: 1.4;
+}
+html[data-theme="dark"] .tech-note-callout { background: #2a2010; color: #f0c674; }
+
 /* ---------- Team surface: performance cards ---------- */
 .team-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .tech-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow-sm); cursor: pointer; }
