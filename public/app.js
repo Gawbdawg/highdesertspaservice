@@ -2072,6 +2072,18 @@ function renderInvoiceStats() {
   `;
 }
 
+// Small status badge showing whether this invoice made it into Wave (see
+// lib/waveSync.js). Nothing shown for a still-draft invoice that was never
+// eligible to sync yet. A failed sync shows the actual error in a tooltip —
+// waveSyncError is set by waveSync.js whenever Wave rejects or can't be reached,
+// so this is the one place in the admin UI you can tell the integration is
+// actually working (or why it isn't) without checking Wave itself.
+function waveBadge(i) {
+  if (i.waveInvoiceId) return ' <span class="badge completed" title="Synced to Wave">Wave \u2713</span>';
+  if (i.waveSyncError) return ` <span class="badge cancelled" title="${i.waveSyncError.replace(/"/g, '&quot;')}">Wave sync failed</span>`;
+  return '';
+}
+
 function renderInvoiceTable() {
   const filter = document.getElementById('invoiceStatusFilter').value;
   let rows = state.invoices;
@@ -2088,7 +2100,7 @@ function renderInvoiceTable() {
       <td>${money(i.amount)}</td>
       <td>${i.issuedDate || ''}</td>
       <td>${i.dueDate || ''}</td>
-      <td>${overdue ? '<span class="badge cancelled">Overdue</span>' : `<span class="badge ${i.status}">${i.status}</span>`}${i.stripeSessionId ? ' <span class="badge completed">Paid online</span>' : ''}</td>
+      <td>${overdue ? '<span class="badge cancelled">Overdue</span>' : `<span class="badge ${i.status}">${i.status}</span>`}${i.stripeSessionId ? ' <span class="badge completed">Paid online</span>' : ''}${waveBadge(i)}</td>
       <td>
         ${bundled
           ? `<button class="btn small" onclick="viewInvoiceLineItems(${i.bundledIntoInvoiceId})">View combined invoice</button>`
