@@ -1,4 +1,4 @@
-const state = { customers: [], owners: [], technicians: [], appointments: [], invoices: [], services: [], addons: [], serviceRequests: [] };
+const state = { customers: [], owners: [], technicians: [], appointments: [], invoices: [], services: [], addons: [], serviceRequests: [], monthlyPending: [] };
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -46,6 +46,7 @@ function loadTab(tab) {
   if (tab === 'teampulse') loadTeamPulseSurface();
   if (tab === 'invoices') loadInvoices();
   if (tab === 'moneyqueue') loadMoneyQueue();
+  if (tab === 'monthly') loadMonthlyPending();
   if (tab === 'schedule') loadSchedule();
   if (tab === 'propertycal') loadBookings();
   if (tab === 'requests') loadRequests();
@@ -398,7 +399,10 @@ async function loadMoneyQueue() {
   const today = todayStr();
   const isOverdue = (i) => i.status === 'sent' && !!i.dueDate && i.dueDate < today;
   const overdue = invoices.filter(isOverdue).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-  const drafts = invoices.filter((i) => i.status === 'draft');
+  // Monthly-billed/vacation-rental owners' per-job drafts accumulate for a combined
+  // bill instead — they don't belong in a "needs action now" queue. See the Monthly
+  // tab and routes/invoices.js#enrich's isMonthlyDeferred.
+  const drafts = invoices.filter((i) => i.status === 'draft' && !i.isMonthlyDeferred);
   const paidRecent = invoices.filter((i) => i.status === 'paid')
     .sort((a, b) => (b.issuedDate || '').localeCompare(a.issuedDate || ''))
     .slice(0, 8);
@@ -1220,6 +1224,11 @@ window.generateMonthlyInvoice = async (ownerId, ownerName) => {
   } catch (e) {
     alert('Could not generate invoice: ' + e.message);
   }
+  // Refresh whichever of these panels is currently on screen — bundling changes
+  // both the Monthly tab's pending totals and the classic Invoices table/queue.
+  if (document.getElementById('monthlyPendingTable')) loadMonthlyPending();
+  if (document.getElementById('invoiceTable') && document.getElementById('tab-invoices').classList.contains('active')) loadInvoices();
+  if (document.getElementById('moneyQueue') && document.getElementById('tab-moneyqueue').classList.contains('active')) loadMoneyQueue();
 };
 
 window.deleteOwner = async (id) => {
@@ -2098,7 +2107,10 @@ window.retryWaveSync = async (id) => {
 
 function renderInvoiceTable() {
   const filter = document.getElementById('invoiceStatusFilter').value;
-  let rows = state.invoices;
+  // Monthly-billed/vacation-rental owners' per-job drafts belong on the Monthly tab,
+  // not here — they're not something that needs action the moment a job is done. See
+  // routes/invoices.js#enrich's isMonthlyDeferred.
+  let rows = state.invoices.filter((i) => !i.isMonthlyDeferred);
   if (filter === 'overdue') rows = rows.filter(isOverdue);
   else if (filter) rows = rows.filter((i) => i.status === filter && !(filter === 'sent' && isOverdue(i)));
 
@@ -2209,6 +2221,64 @@ async function loadInvoices() {
 }
 
 document.getElementById('invoiceStatusFilter').addEventListener('change', renderInvoiceTable);
+
+// Monthly tab — owners on Monthly billing, or with at least one vacation-rental
+// property, whose completed jobs accumulate toward one combined bill instead of
+// needing individual action per job (see routes/owners.js's /monthly-pending, and
+// lib/monthlyInvoice.js#ownerQualifiesForMonthly for exactly who qualifies and why).
+async function loadMonthlyPending() {
+  let owners;
+  try {
+    owners = await api('/api/owners/monthly-pending');
+  } catch (e) {
+    document.querySelector('#monthlyPendingTable tbody').innerHTML = `<tr><td colspan="6" class="empty-state">Could not load: ${e.message}</td></tr>`;
+    return;
+  }
+  state.monthlyPending = owners;
+  renderMonthlyPending();
+}
+
+function renderMonthlyPending() {
+  const owners = state.monthlyPending || [];
+  const tbody = document.querySelector('#monthlyPendingTable tbody');
+  tbody.innerHTML = owners.map((o) => `
+    <tr>
+      <td>${o.ownerName}</td>
+      <td>${o.propertyCount}${o.vacationPropertyCount ? ` <span class="badge sent">${o.vacationPropertyCount} vacation</span>` : ''}</td>
+      <td>${o.billingMode === 'monthly' ? 'Monthly' : 'Per job (vacation)'}${o.monthlyBundleScope === 'property' ? ' · per property' : ''}</td>
+      <td>${o.pendingCount}</td>
+      <td>${money(o.pendingTotal)}</td>
+      <td>
+        <button class="btn small" onclick="viewMonthlyPendingJobs(${o.ownerId}, '${o.ownerName.replace(/'/g, "\'")}')" ${o.pendingCount ? '' : 'disabled'}>View jobs</button>
+        <button class="btn small primary" onclick="generateMonthlyInvoice(${o.ownerId}, '${o.ownerName.replace(/'/g, "\'")}')" ${o.pendingCount ? '' : 'disabled'}>Generate monthly invoice</button>
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="6" class="empty-state">No owners are on Monthly billing or have vacation-rental properties yet.</td></tr>';
+}
+
+// Drill-down for one owner's currently-unbilled jobs, across every one of their
+// properties — reuses the same GET /api/invoices the main Invoices tab uses, just
+// filtered by ownerId (see routes/invoices.js) instead of a single customerId.
+window.viewMonthlyPendingJobs = async (ownerId, ownerName) => {
+  let jobs;
+  try {
+    jobs = await api(`/api/invoices?ownerId=${ownerId}&status=draft`);
+  } catch (e) {
+    alert('Could not load pending jobs: ' + e.message);
+    return;
+  }
+  jobs = jobs.filter((i) => i.isMonthlyDeferred);
+  const rows = jobs.map((i) => `
+    <div class="profile-history-item">
+      <strong>${i.issuedDate || ''} — ${i.customerName}</strong>
+      <div class="meta">${i.description || 'Service'} · ${money(i.amount)}</div>
+    </div>
+  `).join('') || '<div class="empty-state">Nothing pending right now.</div>';
+  openModal(`Pending jobs — ${ownerName}`, `
+    ${rows}
+    <div class="modal-actions"><button class="btn" onclick="closeModal()">Close</button></div>
+  `);
+};
 
 function invoiceForm(i = {}) {
   return `

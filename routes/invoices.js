@@ -4,6 +4,7 @@ const { sendEmail } = require('../lib/mailer');
 const ai = require('../lib/ai');
 const { invoiceDescription } = require('../lib/invoiceDescription');
 const waveSync = require('../lib/waveSync');
+const { ownerQualifiesForMonthly } = require('../lib/monthlyInvoice');
 const router = express.Router();
 
 function money(n) {
@@ -29,16 +30,44 @@ function enrich(inv) {
       ...inv,
       customerName: `${owner ? owner.name : 'Unknown owner'} — ${propertyCount} propert${propertyCount === 1 ? 'y' : 'ies'}`,
       isCombined: true,
+      // A combined invoice IS the thing that needs sending/collecting — never deferred.
+      isMonthlyDeferred: false,
     };
   }
   const customer = store.getById('customers', inv.customerId);
-  return { ...inv, customerName: customer ? customer.name : 'Unknown customer', isCombined: hasLineItems };
+  // A per-job draft invoice for a monthly-billed (or vacation-rental) owner isn't
+  // something that needs office action the moment a tech completes the job — it's
+  // meant to just sit and accumulate until "Generate monthly invoice" rolls it into
+  // a combined bill (see lib/monthlyInvoice.js and the Monthly tab). Flagged here,
+  // in one place, so both the Money queue and the classic Invoices table can hide
+  // these without each re-implementing the same owner-qualifies check.
+  let isMonthlyDeferred = false;
+  if (inv.status === 'draft' && !hasLineItems && customer && customer.ownerId) {
+    const owner = store.getById('owners', customer.ownerId);
+    const properties = store.getAll('customers');
+    isMonthlyDeferred = ownerQualifiesForMonthly(owner, properties);
+  }
+  return {
+    ...inv,
+    customerName: customer ? customer.name : 'Unknown customer',
+    isCombined: hasLineItems,
+    isMonthlyDeferred,
+  };
 }
 
 router.get('/', (req, res) => {
   let invoices = store.getAll('invoices');
   if (req.query.status) invoices = invoices.filter((i) => i.status === req.query.status);
   if (req.query.customerId) invoices = invoices.filter((i) => i.customerId === Number(req.query.customerId));
+  // Used by the Monthly tab's drill-down to show exactly which jobs are sitting
+  // unbilled for one owner across every one of their properties (a plain
+  // customerId filter only covers a single property at a time).
+  if (req.query.ownerId) {
+    const ownerPropertyIds = new Set(
+      store.getAll('customers').filter((c) => c.ownerId === Number(req.query.ownerId)).map((c) => c.id)
+    );
+    invoices = invoices.filter((i) => i.customerId && ownerPropertyIds.has(i.customerId));
+  }
   invoices = invoices.sort((a, b) => (b.issuedDate || '').localeCompare(a.issuedDate || ''));
   res.json(invoices.map(enrich));
 });

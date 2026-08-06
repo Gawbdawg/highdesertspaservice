@@ -274,6 +274,7 @@
         <div class="inner-nav">
           <button class="tab-btn inner active" data-tab="moneyqueue">Needs action</button>
           <button class="tab-btn inner" data-tab="invoices">Invoices (table)</button>
+          <button class="tab-btn inner" data-tab="monthly">Monthly</button>
           <button class="tab-btn inner" data-tab="reports">Reports</button>
         </div>
 
@@ -311,6 +312,20 @@
           </div>
           <table class="data-table" id="invoiceTable">
             <thead><tr><th>Home</th><th>Amount</th><th>Issued</th><th>Due</th><th>Status</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </section>
+
+        <!-- Monthly-billed / vacation-rental owners: jobs accumulating toward a
+             combined bill instead of needing action per job. See lib/monthlyInvoice.js
+             #ownerQualifiesForMonthly and routes/owners.js's /monthly-pending. -->
+        <section id="tab-monthly" class="tab-panel">
+          <div class="panel-header">
+            <h1>Monthly Invoicing</h1>
+          </div>
+          <p class="portal-hint" style="margin:0 0 12px;">Owners on Monthly billing, or with at least one vacation-rental property, don't need each completed job sent individually — their jobs sit here and accumulate until you generate that month's combined invoice.</p>
+          <table class="data-table" id="monthlyPendingTable">
+            <thead><tr><th>Owner</th><th>Properties</th><th>Billing</th><th>Pending jobs</th><th>Pending total</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
         </section>

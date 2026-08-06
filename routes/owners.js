@@ -1,7 +1,7 @@
 const express = require('express');
 const store = require('../lib/store');
 const { hashPassword, sanitizeOwner } = require('../lib/auth');
-const { generateMonthlyInvoiceForOwner } = require('../lib/monthlyInvoice');
+const { generateMonthlyInvoiceForOwner, ownerQualifiesForMonthly } = require('../lib/monthlyInvoice');
 const { makeCustomerMatcher } = require('../lib/customerMatch');
 const { buildAgreementPdf } = require('../lib/agreementPdf');
 const router = express.Router();
@@ -36,6 +36,47 @@ router.get('/', (req, res) => {
 // agreed. Available any time the record exists (agreedToTerms doesn't have to still be
 // true going forward — this is a historical signature, not a live status check), so a
 // signature is never lost even if terms get re-versioned down the line.
+// Owners whose completed jobs accumulate toward one monthly bill instead of
+// needing individual action the moment each job is done (see
+// lib/monthlyInvoice.js#ownerQualifiesForMonthly — explicit Monthly billing, or
+// any vacation-rental property). This is what the Monthly tab lists: however
+// many of those jobs are currently sitting unbilled for each qualifying owner,
+// so the office can see what's accumulating without it cluttering the main
+// Invoices tab/Money queue (see routes/invoices.js#enrich's isMonthlyDeferred,
+// which uses this same qualification check so the two views always agree).
+router.get('/monthly-pending', (req, res) => {
+  const owners = store.getAll('owners');
+  const properties = store.getAll('customers');
+  const invoices = store.getAll('invoices');
+
+  const result = owners
+    .filter((owner) => ownerQualifiesForMonthly(owner, properties))
+    .map((owner) => {
+      const ownerProperties = properties.filter((p) => p.ownerId === owner.id);
+      const propertyIds = new Set(ownerProperties.map((p) => p.id));
+      const pending = invoices.filter((i) => (
+        i.status === 'draft'
+        && i.customerId
+        && propertyIds.has(i.customerId)
+        && !(Array.isArray(i.lineItems) && i.lineItems.length > 0)
+      ));
+      const pendingTotal = pending.reduce((sum, i) => sum + Number(i.amount || 0), 0);
+      return {
+        ownerId: owner.id,
+        ownerName: owner.name,
+        propertyCount: ownerProperties.length,
+        vacationPropertyCount: ownerProperties.filter((p) => p.type === 'vacation').length,
+        billingMode: owner.billingMode || 'perJob',
+        monthlyBundleScope: owner.monthlyBundleScope || 'owner',
+        pendingCount: pending.length,
+        pendingTotal: Math.round(pendingTotal * 100) / 100,
+      };
+    })
+    .sort((a, b) => b.pendingTotal - a.pendingTotal || (a.ownerName || '').localeCompare(b.ownerName || ''));
+
+  res.json(result);
+});
+
 router.get('/:id/agreement.pdf', (req, res) => {
   const owner = store.getById('owners', req.params.id);
   if (!owner) return res.status(404).json({ error: 'Owner not found' });
