@@ -394,6 +394,7 @@
           <button class="tab-btn inner active" data-tab="teampulse">Team</button>
           <button class="tab-btn inner" data-tab="technicians">Technicians (table)</button>
           <button class="tab-btn inner" data-tab="timesheets">Timesheets (table)</button>
+          <button class="tab-btn inner" data-tab="payouts">Payouts</button>
         </div>
 
         <!-- New Team performance surface -->
@@ -441,6 +442,26 @@
           <div class="stat-cards" id="timesheetStats"></div>
           <table class="data-table" id="timesheetTable">
             <thead><tr><th>Technician</th><th>Date</th><th>Hours</th><th>Gas stipend</th><th>Wages</th><th>Pay</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </section>
+
+        <!-- Payouts — actual payments made to techs, separate from timesheets'
+             computed "owed" figure (see routes/payouts.js). -->
+        <section id="tab-payouts" class="tab-panel">
+          <div class="panel-header">
+            <h1>Payouts</h1>
+            <button class="btn primary" id="newPayoutBtn">+ Log a payout</button>
+          </div>
+          <p class="portal-hint">A record of money actually paid out to each technician (cash, Venmo, check — payment itself happens outside this app). Balance below is lifetime pay owed (from Timesheets) minus what's logged here.</p>
+          <div class="stat-cards" id="payoutBalances"></div>
+          <div class="filter-row">
+            <label>Technician
+              <select id="payoutTechFilter"><option value="">All technicians</option></select>
+            </label>
+          </div>
+          <table class="data-table" id="payoutTable">
+            <thead><tr><th>Technician</th><th>Date</th><th>Amount</th><th>Note</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
         </section>

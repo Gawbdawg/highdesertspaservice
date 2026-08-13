@@ -43,6 +43,7 @@ function loadTab(tab) {
   if (tab === 'peopledir') loadPeopleDirectory();
   if (tab === 'technicians') loadTechnicians();
   if (tab === 'timesheets') loadTimesheets();
+  if (tab === 'payouts') loadPayouts();
   if (tab === 'teampulse') loadTeamPulseSurface();
   if (tab === 'invoices') loadInvoices();
   if (tab === 'moneyqueue') loadMoneyQueue();
@@ -1527,6 +1528,128 @@ document.getElementById('newTimeEntryBtn').addEventListener('click', () => {
     }
   });
 });
+
+// Payouts — actual money paid to a technician outside this app (cash, Venmo, a
+// check), kept separate from Timesheets' computed "owed" figure. See
+// routes/payouts.js, which also returns a lifetime owed/paid/balance summary per
+// technician so "did I already pay him for that" has a real answer.
+let payoutRows = [];
+
+async function loadPayouts() {
+  const techSelect = document.getElementById('payoutTechFilter');
+  if (techSelect.options.length <= 1) {
+    techSelect.innerHTML = '<option value="">All technicians</option>' +
+      state.technicians.map((t) => `<option value="${t.id}">${t.name}</option>`).join('');
+  }
+  const params = new URLSearchParams();
+  const techId = document.getElementById('payoutTechFilter').value;
+  if (techId) params.set('technicianId', techId);
+
+  let result;
+  try {
+    result = await api('/api/payouts?' + params.toString());
+  } catch (e) {
+    document.querySelector('#payoutTable tbody').innerHTML = `<tr><td colspan="5" class="empty-state">Could not load: ${e.message}</td></tr>`;
+    return;
+  }
+  payoutRows = result.payouts;
+
+  document.getElementById('payoutBalances').innerHTML = result.balances.map((b) => `
+    <div class="stat-card ${b.balance > 0 ? 'stat-overdue' : ''}">
+      <div class="stat-label">${b.technicianName}</div>
+      <div class="stat-value">${money(b.balance)}</div>
+      <div style="font-size:12px; color:var(--text-faint); margin-top:2px;">${money(b.totalOwed)} owed · ${money(b.totalPaid)} paid</div>
+    </div>
+  `).join('') || '<div class="portal-hint" style="margin:0;">No technicians yet.</div>';
+
+  const tbody = document.querySelector('#payoutTable tbody');
+  tbody.innerHTML = payoutRows.map((p) => `
+    <tr>
+      <td>${p.technicianName}</td>
+      <td>${niceDateShort(p.date)}</td>
+      <td>${money(p.amount)}</td>
+      <td>${p.note || ''}</td>
+      <td>
+        <button class="btn small" onclick="editPayout(${p.id})">Edit</button>
+        <button class="btn small danger" onclick="deletePayout(${p.id})">Delete</button>
+      </td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" class="empty-state">No payouts logged yet.</td></tr>';
+}
+
+document.getElementById('payoutTechFilter').addEventListener('change', loadPayouts);
+
+document.getElementById('newPayoutBtn').addEventListener('click', () => {
+  openModal('Log a payout', `
+    <label>Technician<select id="poTech">${state.technicians.map((t) => `<option value="${t.id}">${t.name}</option>`).join('')}</select></label>
+    <label>Amount<input type="number" step="0.01" id="poAmount" placeholder="0.00" /></label>
+    <label>Date<input type="date" id="poDate" value="${todayStr()}" /></label>
+    <label>Note <span style="font-weight:400; color:var(--text-faint);">(optional — e.g. "cash", "Venmo", "week of Aug 3")</span><input id="poNote" /></label>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" id="savePayoutBtn">Save</button>
+    </div>
+  `);
+  document.getElementById('savePayoutBtn').addEventListener('click', async () => {
+    const amount = document.getElementById('poAmount').value;
+    if (!amount) { alert('Enter an amount.'); return; }
+    try {
+      await api('/api/payouts', {
+        method: 'POST',
+        body: JSON.stringify({
+          technicianId: document.getElementById('poTech').value,
+          amount,
+          date: document.getElementById('poDate').value,
+          note: document.getElementById('poNote').value,
+        }),
+      });
+      closeModal();
+      loadPayouts();
+    } catch (e) {
+      alert('Could not log payout: ' + e.message);
+    }
+  });
+});
+
+window.editPayout = (id) => {
+  const p = payoutRows.find((x) => x.id === id);
+  if (!p) return;
+  openModal(`Edit payout — ${p.technicianName}`, `
+    <label>Amount<input type="number" step="0.01" id="epAmount" value="${p.amount}" /></label>
+    <label>Date<input type="date" id="epDate" value="${p.date}" /></label>
+    <label>Note<input id="epNote" value="${(p.note || '').replace(/"/g, '&quot;')}" /></label>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" id="saveEditPayoutBtn">Save</button>
+    </div>
+  `);
+  document.getElementById('saveEditPayoutBtn').addEventListener('click', async () => {
+    try {
+      await api(`/api/payouts/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          amount: document.getElementById('epAmount').value,
+          date: document.getElementById('epDate').value,
+          note: document.getElementById('epNote').value,
+        }),
+      });
+      closeModal();
+      loadPayouts();
+    } catch (e) {
+      alert('Could not save: ' + e.message);
+    }
+  });
+};
+
+window.deletePayout = async (id) => {
+  if (!confirm('Delete this payout record?')) return;
+  try {
+    await api(`/api/payouts/${id}`, { method: 'DELETE' });
+    loadPayouts();
+  } catch (e) {
+    alert('Could not delete: ' + e.message);
+  }
+};
 
 // datetime-local inputs need "YYYY-MM-DDTHH:MM" in LOCAL time, not the ISO/UTC string
 // the API stores — this converts using the browser's own timezone.
