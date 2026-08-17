@@ -1,6 +1,6 @@
 const express = require('express');
 const store = require('../lib/store');
-const { requireOwnerAuth } = require('../lib/auth');
+const { requireOwnerAuth, hashPassword, checkPassword, sanitizeOwner } = require('../lib/auth');
 const { syncCustomerCalendar, guessLabel } = require('../lib/icalSync');
 const { maybeCreateCheckoutAppointment } = require('../lib/turnoverSchedule');
 const { geocodeAddress } = require('../lib/geocode');
@@ -27,6 +27,47 @@ function normalizePropertyType(type) {
   if (type === 'vacation' || type === 'repair') return type;
   return 'residential';
 }
+
+// Self-service account editing — name/email/phone/username, and optionally a new
+// password. Most owner accounts start with no password at all (bulk-created from a
+// contact list, logging in via emailed code instead — see routes/ownerAuth.js), so
+// this doubles as "set a password for the first time" for those accounts. If a
+// password is already set, changing it requires the current one: this endpoint is
+// only reachable from an already-logged-in session, so without that check anyone at
+// an owner's unattended, still-logged-in computer could lock them out by just
+// setting a new password themselves.
+router.put('/account', (req, res) => {
+  const owner = store.getById('owners', req.session.ownerId);
+  if (!owner) return res.status(404).json({ error: 'Account not found' });
+
+  const { name, email, phone, username, password, currentPassword } = req.body;
+  const updates = {};
+  if (name !== undefined) updates.name = name;
+  if (email !== undefined) updates.email = email;
+  if (phone !== undefined) updates.phone = phone;
+
+  if (username !== undefined && username !== owner.username) {
+    if (username) {
+      const existing = store.getAll('owners').find(
+        (o) => o.id !== owner.id && (o.username || '').toLowerCase() === username.toLowerCase()
+      );
+      if (existing) return res.status(400).json({ error: 'That username is already taken' });
+    }
+    updates.username = username;
+  }
+
+  if (password) {
+    if (owner.passwordHash) {
+      if (!currentPassword || !checkPassword(currentPassword, owner.passwordHash)) {
+        return res.status(400).json({ error: 'Current password is incorrect' });
+      }
+    }
+    updates.passwordHash = hashPassword(password);
+  }
+
+  const updated = store.update('owners', owner.id, updates);
+  res.json(sanitizeOwner(updated));
+});
 
 // Lets an owner opt in/out of newsletter emails at any time, regardless of the default
 // set when their account was created (e.g. from their signed waiver) — every send

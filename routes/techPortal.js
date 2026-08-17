@@ -1,6 +1,6 @@
 const express = require('express');
 const store = require('../lib/store');
-const { requireTechAuth, sanitizeTechnician } = require('../lib/auth');
+const { requireTechAuth, sanitizeTechnician, hashPassword, checkPassword } = require('../lib/auth');
 const { orderStopsByRoute } = require('../lib/routeOptimizer');
 const { geocodeAddress } = require('../lib/geocode');
 const { summarizeByDay } = require('../lib/timesheet');
@@ -22,6 +22,45 @@ router.put('/me', (req, res) => {
   if (req.body.lastStartAddress !== undefined) updates.lastStartAddress = req.body.lastStartAddress;
   const updated = store.update('technicians', req.session.technicianId, updates);
   if (!updated) return res.status(404).json({ error: 'Technician not found' });
+  res.json(sanitizeTechnician(updated));
+});
+
+// Self-service account editing — name/email/phone/username, and optionally a new
+// password. Mirrors owners.js's PUT /account: current password is only required when
+// one is already set (some techs are created by the admin with no password yet, or
+// log in some other way), so this also works as "set your password for the first
+// time." Kept separate from PUT /me above since /me is used by the Today screen for
+// quick contact-info touch-ups and deliberately can't reach login credentials.
+router.put('/account', (req, res) => {
+  const tech = store.getById('technicians', req.session.technicianId);
+  if (!tech) return res.status(404).json({ error: 'Account not found' });
+
+  const { name, email, phone, username, password, currentPassword } = req.body;
+  const updates = {};
+  if (name !== undefined) updates.name = name;
+  if (email !== undefined) updates.email = email;
+  if (phone !== undefined) updates.phone = phone;
+
+  if (username !== undefined && username !== tech.username) {
+    if (username) {
+      const existing = store.getAll('technicians').find(
+        (t) => t.id !== tech.id && (t.username || '').toLowerCase() === username.toLowerCase()
+      );
+      if (existing) return res.status(400).json({ error: 'That username is already taken' });
+    }
+    updates.username = username;
+  }
+
+  if (password) {
+    if (tech.passwordHash) {
+      if (!currentPassword || !checkPassword(currentPassword, tech.passwordHash)) {
+        return res.status(400).json({ error: 'Current password is incorrect' });
+      }
+    }
+    updates.passwordHash = hashPassword(password);
+  }
+
+  const updated = store.update('technicians', tech.id, updates);
   res.json(sanitizeTechnician(updated));
 });
 

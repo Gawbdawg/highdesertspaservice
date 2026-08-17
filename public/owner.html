@@ -262,6 +262,31 @@
             <button class="btn primary" id="enableAutopayBtn">Turn on autopay</button>
             <button class="btn small danger hidden" id="disableAutopayBtn">Turn off autopay</button>
           </div>
+
+          <div class="portal-card" style="max-width:none; margin:16px 0 0;">
+            <div id="accountSettingsView" style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">
+              <div>
+                <div style="font-size:14px; font-weight:600;">Account settings</div>
+                <div class="portal-sub" style="margin:0;" id="accountSettingsMeta"></div>
+              </div>
+              <button class="btn small" id="editAccountBtn">Edit account</button>
+            </div>
+            <div id="editAccountForm" class="hidden" style="margin-top:10px;">
+              <div id="editAccountError" class="portal-error hidden"></div>
+              <label>Name<input type="text" id="acctName" /></label>
+              <label>Email<input type="email" id="acctEmail" autocomplete="email" /></label>
+              <label>Phone<input type="text" id="acctPhone" /></label>
+              <label>Username<input type="text" id="acctUsername" autocomplete="username" /></label>
+              <div id="acctCurrentPasswordRow" class="hidden">
+                <label>Current password<input type="password" id="acctCurrentPassword" autocomplete="current-password" /></label>
+              </div>
+              <label>New password <span style="font-weight:400; color:#7a8f97;">(leave blank to keep your current one)</span><input type="password" id="acctNewPassword" autocomplete="new-password" /></label>
+              <div style="display:flex; gap:8px;">
+                <button class="btn primary" id="saveAccountBtn">Save changes</button>
+                <button class="btn small" id="cancelEditAccountBtn">Cancel</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Visits -->

@@ -62,7 +62,64 @@ function switchTechTab(tab) {
   if (tab === 'calendar') loadTechCalendar();
   if (tab === 'timesheet') loadTimesheet();
   if (tab === 'timeoff') loadTimeOff();
+  if (tab === 'account') renderAccountSettings();
 }
+
+// ---- Account settings: let the tech correct their own name/email/phone/username,
+// or set/change their password. A current password is only demanded when one is
+// already set (tech.hasPassword) — matches the same pattern used in owner.js's
+// PUT /api/owner/account, since a tech with no password yet has nothing to verify
+// against there either.
+function renderAccountSettings() {
+  const metaEl = document.getElementById('accountSettingsMeta');
+  metaEl.textContent = `${currentTech.username || 'no username set'} · ${currentTech.email || 'no email on file'}`;
+}
+
+document.getElementById('editAccountBtn').addEventListener('click', () => {
+  document.getElementById('acctName').value = currentTech.name || '';
+  document.getElementById('acctEmail').value = currentTech.email || '';
+  document.getElementById('acctPhone').value = currentTech.phone || '';
+  document.getElementById('acctUsername').value = currentTech.username || '';
+  document.getElementById('acctNewPassword').value = '';
+  document.getElementById('acctCurrentPassword').value = '';
+  document.getElementById('acctCurrentPasswordRow').classList.toggle('hidden', !currentTech.hasPassword);
+  document.getElementById('editAccountError').classList.add('hidden');
+  document.getElementById('editAccountForm').classList.remove('hidden');
+});
+
+document.getElementById('cancelEditAccountBtn').addEventListener('click', () => {
+  document.getElementById('editAccountForm').classList.add('hidden');
+});
+
+document.getElementById('saveAccountBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('editAccountError');
+  errEl.classList.add('hidden');
+  const body = {
+    name: document.getElementById('acctName').value.trim(),
+    email: document.getElementById('acctEmail').value.trim(),
+    phone: document.getElementById('acctPhone').value.trim(),
+    username: document.getElementById('acctUsername').value.trim(),
+  };
+  const newPassword = document.getElementById('acctNewPassword').value;
+  if (newPassword) {
+    body.password = newPassword;
+    body.currentPassword = document.getElementById('acctCurrentPassword').value;
+  }
+  const btn = document.getElementById('saveAccountBtn');
+  btn.disabled = true;
+  try {
+    const updated = await api('/api/tech/account', { method: 'PUT', body: JSON.stringify(body) });
+    currentTech = updated;
+    document.getElementById('welcomeMsg').textContent = `Hi ${updated.name}`;
+    renderAccountSettings();
+    document.getElementById('editAccountForm').classList.add('hidden');
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not save your changes.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 document.getElementById('techTabs').addEventListener('click', (e) => {
   const btn = e.target.closest('.owner-tab-btn');

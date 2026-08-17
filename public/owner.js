@@ -125,6 +125,7 @@ async function showDash(owner) {
 
   currentOwner = owner;
   renderAutopayCard();
+  renderAccountSettings();
   handleAutopayRedirect();
 
   properties = await api('/api/owner/properties');
@@ -1418,6 +1419,62 @@ document.getElementById('disableAutopayBtn').addEventListener('click', async () 
     renderAutopayCard();
   } catch (e) {
     alert(e.message || 'Could not turn off autopay.');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// ---- Account settings: let the owner correct their own name/email/phone/username,
+// or set/change their password. A current password is only demanded when one is
+// already set (owner.hasPassword) — many owners never set one and log in with an
+// emailed code instead (see codeLoginStep1/2 above), so requiring a "current"
+// password that doesn't exist would make it impossible to ever set a first one.
+function renderAccountSettings() {
+  const metaEl = document.getElementById('accountSettingsMeta');
+  metaEl.textContent = `${currentOwner.username || 'no username set'} · ${currentOwner.email || 'no email on file'}`;
+}
+
+document.getElementById('editAccountBtn').addEventListener('click', () => {
+  document.getElementById('acctName').value = currentOwner.name || '';
+  document.getElementById('acctEmail').value = currentOwner.email || '';
+  document.getElementById('acctPhone').value = currentOwner.phone || '';
+  document.getElementById('acctUsername').value = currentOwner.username || '';
+  document.getElementById('acctNewPassword').value = '';
+  document.getElementById('acctCurrentPassword').value = '';
+  document.getElementById('acctCurrentPasswordRow').classList.toggle('hidden', !currentOwner.hasPassword);
+  document.getElementById('editAccountError').classList.add('hidden');
+  document.getElementById('editAccountForm').classList.remove('hidden');
+});
+
+document.getElementById('cancelEditAccountBtn').addEventListener('click', () => {
+  document.getElementById('editAccountForm').classList.add('hidden');
+});
+
+document.getElementById('saveAccountBtn').addEventListener('click', async () => {
+  const errEl = document.getElementById('editAccountError');
+  errEl.classList.add('hidden');
+  const body = {
+    name: document.getElementById('acctName').value.trim(),
+    email: document.getElementById('acctEmail').value.trim(),
+    phone: document.getElementById('acctPhone').value.trim(),
+    username: document.getElementById('acctUsername').value.trim(),
+  };
+  const newPassword = document.getElementById('acctNewPassword').value;
+  if (newPassword) {
+    body.password = newPassword;
+    body.currentPassword = document.getElementById('acctCurrentPassword').value;
+  }
+  const btn = document.getElementById('saveAccountBtn');
+  btn.disabled = true;
+  try {
+    const updated = await api('/api/owner/account', { method: 'PUT', body: JSON.stringify(body) });
+    currentOwner = updated;
+    document.getElementById('welcomeMsg').textContent = `Hi ${updated.name}`;
+    renderAccountSettings();
+    document.getElementById('editAccountForm').classList.add('hidden');
+  } catch (e) {
+    errEl.textContent = e.message || 'Could not save your changes.';
+    errEl.classList.remove('hidden');
   } finally {
     btn.disabled = false;
   }
