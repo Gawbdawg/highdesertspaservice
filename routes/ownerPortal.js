@@ -304,6 +304,47 @@ router.put('/properties/:id', async (req, res) => {
   res.json(updated);
 });
 
+// Lets an owner remove a property themselves (e.g. they sold it, or added a
+// duplicate by mistake) instead of having to call in and ask the admin to do it.
+// Blocked in two cases where a silent delete would lose track of something real:
+//   - an upcoming ('scheduled') visit still on the calendar — a tech could show up to
+//     an address that's no longer in the system, and the 24hr cancellation-fee policy
+//     (see /appointments/:id/cancel above) never got a chance to apply. The owner is
+//     pointed at cancelling those visits first instead.
+//   - an unpaid invoice with a real balance on it — deleting the property shouldn't
+//     make an unpaid bill silently unreachable. A $0 'draft' invoice doesn't count
+//     (nothing owed on it yet); everything else billed against this property does,
+//     whether it's already been sent or is still sitting in draft.
+// Any guest-booking calendar entries (vacation properties) are removed along with the
+// property — they're meaningless without it and re-sync from the owner's iCal source
+// anyway, nothing is lost.
+router.delete('/properties/:id', (req, res) => {
+  const property = myProperty(req, req.params.id);
+  if (!property) return res.status(404).json({ error: 'Property not found' });
+
+  const upcomingCount = store.getAll('appointments').filter(
+    (a) => a.customerId === property.id && a.status === 'scheduled'
+  ).length;
+  if (upcomingCount > 0) {
+    return res.status(400).json({
+      error: `This property has ${upcomingCount} upcoming visit${upcomingCount === 1 ? '' : 's'} scheduled — cancel ${upcomingCount === 1 ? 'it' : 'them'} first from the Services tab, then delete the property.`,
+    });
+  }
+
+  const unpaidInvoices = store.getAll('invoices').filter(
+    (i) => i.customerId === property.id && i.status !== 'paid' && Number(i.amount || 0) > 0
+  );
+  if (unpaidInvoices.length > 0) {
+    return res.status(400).json({
+      error: `This property has ${unpaidInvoices.length} unpaid invoice${unpaidInvoices.length === 1 ? '' : 's'} — please contact us to resolve ${unpaidInvoices.length === 1 ? 'it' : 'them'} before deleting.`,
+    });
+  }
+
+  store.getAll('bookings').filter((b) => b.customerId === property.id).forEach((b) => store.remove('bookings', b.id));
+  store.remove('customers', property.id);
+  res.status(204).end();
+});
+
 // Repair-type properties get the same recurring "set up my regular service" option
 // residential properties have (unlike vacation, which is always fully blocked below) —
 // but since ongoing maintenance isn't really the point of a repair account, they also

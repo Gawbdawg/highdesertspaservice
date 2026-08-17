@@ -281,6 +281,29 @@ document.getElementById('cancelEditPropertyBtn').addEventListener('click', () =>
   renderPropertyDetails(selectedProperty());
 });
 
+document.getElementById('deletePropertyBtn').addEventListener('click', async () => {
+  const p = selectedProperty();
+  const lastOne = properties.length === 1;
+  const warning = lastOne
+    ? `Delete ${p.name}? This is your only property — once it's gone you'll need to add a new one to keep using the portal.`
+    : `Delete ${p.name}? This can't be undone.`;
+  if (!confirm(warning)) return;
+  const btn = document.getElementById('deletePropertyBtn');
+  btn.disabled = true;
+  try {
+    await api(`/api/owner/properties/${selectedPropertyId}`, { method: 'DELETE' });
+    selectedPropertyId = null;
+    pendingSelectPropertyId = null;
+    await checkSession();
+  } catch (e) {
+    const errEl = document.getElementById('editPropertyError');
+    errEl.textContent = e.message || 'Could not delete that property.';
+    errEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 document.getElementById('saveEditPropertyBtn').addEventListener('click', async () => {
   const errEl = document.getElementById('editPropertyError');
   errEl.classList.add('hidden');
