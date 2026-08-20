@@ -128,6 +128,13 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--p
 textarea { width: 100%; resize: vertical; }
 
 /* ---------- Tables ---------- */
+/* Every .data-table on a phone is wider than the screen (some have 8-10 columns) —
+   rather than trying to force columns to reflow (which breaks row alignment badly at
+   that many columns), each table is wrapped in a .table-wrap div in the HTML that lets
+   it scroll horizontally on its own, independent of the rest of the page. The table
+   itself keeps its normal desktop layout; only this wrapper's overflow behavior changes
+   on narrow screens (see the max-width:860px block below). */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .data-table { width: 100%; border-collapse: collapse; background: var(--card-bg); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-sm); border: 1px solid var(--border); }
 .data-table th, .data-table td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13.5px; }
 .data-table th { background: #f7fafb; color: var(--text-muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; padding-top: 10px; padding-bottom: 10px; }
@@ -449,4 +456,56 @@ html[data-theme="dark"] .tech-note-callout { background: #2a2010; color: #f0c674
   .sidebar-footer { border-top: none; border-left: 1px solid rgba(255,255,255,0.08); padding: 10px; }
   .sidebar-footer .btn.small { width: auto; white-space: nowrap; }
   main { padding: 18px; }
+
+  /* The 2027 redesign replaced the old 14-item .tabs sidebar with .surface-nav (the 5
+     top-level Today/Schedule/People/Money/Team buttons) plus .inner-nav (each surface's
+     own pill sub-tabs) — those two never got the same narrow-screen treatment .tabs
+     got above, so on a phone they were just squeezed into the sidebar's horizontal
+     strip with no scrolling. Mirrors the .tabs fix: becomes a horizontally-scrolling
+     row instead of trying to wrap 5 buttons into a cramped strip. */
+  .surface-nav { flex-direction: row; overflow-x: auto; overflow-y: visible; padding: 8px; flex: 0 0 auto; }
+  .surface-btn { flex-shrink: 0; border-left: none; border-bottom: 3px solid transparent; white-space: nowrap; }
+  .surface-btn.active { border-left-color: transparent; border-bottom-color: var(--accent); }
+  .inner-nav { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px; margin-left: -2px; }
+  .inner-nav .tab-btn.inner { flex-shrink: 0; white-space: nowrap; }
+
+  /* .data-table columns can't reasonably reflow at this width (some tables have 8-10
+     columns) — let each one scroll horizontally within its own .table-wrap instead of
+     forcing the whole page wider than the viewport. */
+  .table-wrap { margin: 0 -18px; padding: 0 18px; }
+  .table-wrap .data-table { border-radius: 0; }
+
+  /* .btn.small's default 4px/10px padding + 12px text works out to roughly a 22-24px
+     tall tap target — well under the ~44px touch-target guideline, and these are used
+     for real actions everywhere (Edit/Delete/Cancel/Log out/etc.), not just decoration.
+     Bumped here rather than changed at the base .btn.small rule so desktop mouse users
+     (where the smaller, denser buttons read better in dense tables) keep the original
+     sizing. */
+  .btn.small { padding: 8px 12px; font-size: 13px; }
+  .btn-close { padding: 6px; min-width: 36px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
+  input[type="checkbox"] { width: 18px; height: 18px; }
+}
+
+/* ---------- Responsive: phone-width tightening ---------- */
+@media (max-width: 480px) {
+  main { padding: 14px; }
+  .table-wrap { margin: 0 -14px; padding: 0 14px; }
+  h1 { font-size: 18px; }
+  .panel-header { gap: 8px; }
+  .modal-body { padding: 14px; }
+  .modal-header { padding: 12px 14px; }
+  .modal-actions { flex-wrap: wrap; }
+  .modal-actions .btn { flex: 1; min-width: 0; }
+  .stat-cards { gap: 8px; }
+  .stat-card { min-width: 130px; padding: 10px 12px; }
+  .stat-card .stat-value { font-size: 20px; }
+  .filter-row { gap: 8px; }
+  #peopleSearch, #ownerSearchInput { min-width: 0; width: 100%; }
+  .cal-grid, .gantt-daylabels, .gantt-week { gap: 4px; }
+  .cal-cell { min-height: 56px; padding: 4px; }
+  .cal-daylabel { font-size: 9px; padding-bottom: 6px; }
+  .gantt-bar { font-size: 8px; padding: 0 3px; height: 15px; }
+  .gantt-daynum { width: 14px; height: 14px; font-size: 9px; }
+  .tech-card .tech-detail { grid-template-columns: 1fr; gap: 6px; }
+  .people-detail-tabs, .inner-nav { gap: 4px; }
 }

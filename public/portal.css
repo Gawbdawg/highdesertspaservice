@@ -22,7 +22,7 @@
   background: #fff; border-radius: 8px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   margin-bottom: 10px;
 }
-.job-card .job-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.job-card .job-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
 .job-card .job-date { font-size: 13px; color: #a0522d; font-weight: 700; }
 .job-card .job-customer { font-size: 16px; font-weight: 600; margin-top: 2px; }
 .job-card .job-meta { font-size: 13px; color: #5a7078; margin-top: 4px; }
@@ -88,10 +88,31 @@
    sidebar and more chrome around it, while this one is meant to sit inline in a
    narrower content column, so the same cell size read as oversized. These overrides
    only match inside #svcCalGrid, so the shared admin calendar is untouched. */
-#svcCalGrid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
-#svcCalGrid .cal-cell { min-height: 56px; padding: 5px 6px; gap: 2px; border-radius: 8px; }
-#svcCalGrid .cal-daynum { font-size: 11px; width: 18px; height: 18px; }
-#svcCalGrid .cal-appt-chip { font-size: 10px; padding: 2px 5px; border-left-width: 2px; }
+#svcCalGrid, #techCalGrid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+#svcCalGrid .cal-cell, #techCalGrid .cal-cell { min-height: 56px; padding: 5px 6px; gap: 2px; border-radius: 8px; }
+#svcCalGrid .cal-daynum, #techCalGrid .cal-daynum { font-size: 11px; width: 18px; height: 18px; }
+#svcCalGrid .cal-appt-chip, #techCalGrid .cal-appt-chip { font-size: 10px; padding: 2px 5px; border-left-width: 2px; }
 @media (max-width: 640px) {
-  #svcCalGrid .cal-cell { min-height: 44px; font-size: 10px; padding: 4px; }
+  #svcCalGrid .cal-cell, #techCalGrid .cal-cell { min-height: 44px; font-size: 10px; padding: 4px; }
+  #svcCalGrid .cal-daylabel, #techCalGrid .cal-daylabel { font-size: 9px; }
 }
+
+/* Booking Gantt calendar (vacation properties) is the densest view in either portal —
+   7 columns of colored, labeled bars. Shrinks further than styles.css's own 700px
+   breakpoint once the portal's own (narrower, max-width:640px) column gets tight. */
+@media (max-width: 480px) {
+  .gantt-bar { font-size: 8px; padding: 0 3px; height: 15px; }
+  .gantt-daynum { width: 14px; height: 14px; font-size: 9px; }
+  .gantt-legend { font-size: 11px; gap: 8px; }
+}
+
+/* Tap targets: owner/tech portal buttons are used almost entirely on phones, so these
+   are sized for a thumb rather than a cursor — .btn.small's base 4px/10px padding (see
+   styles.css) reads fine on a desktop mouse but is a ~22-24px target on a touchscreen,
+   under the ~44px guideline, for things like Log out, Edit account, Edit/Delete
+   property, and Cancel visit. Scoped to .portal-app so this doesn't change the admin
+   dashboard's denser desktop button sizing. */
+.portal-app .btn.small { padding: 8px 12px; font-size: 13px; }
+.portal-app .btn-close { padding: 6px; min-width: 36px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
+.owner-tab-btn { padding: 12px 14px; }
+.addon-chip { padding: 8px 14px; }

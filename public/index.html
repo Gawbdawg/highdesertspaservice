@@ -166,10 +166,12 @@
               <select id="bookingCustomerFilter"><option value="">All properties</option></select>
             </label>
           </div>
+          <div class="table-wrap">
           <table class="data-table" id="bookingsTable">
             <thead><tr><th>Property</th><th>Check-in</th><th>Check-out</th><th>Notes</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
+          </div>
         </section>
 
         <!-- Service Requests (from owner portal) -->
@@ -188,10 +190,12 @@
               </select>
             </label>
           </div>
+          <div class="table-wrap">
           <table class="data-table" id="requestsTable">
             <thead><tr><th>Property</th><th>Requested date</th><th>Notes</th><th>Status</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
+          </div>
         </section>
       </div>
 
@@ -233,10 +237,12 @@
             <input type="text" id="customerSearch" placeholder="Search name or address…" />
           </div>
           <p class="portal-hint">Each home is a property. Link a home to an Owner account below to give them portal access at <code id="ownerPortalLink"></code> — one owner account can have several homes linked to it.</p>
+          <div class="table-wrap">
           <table class="data-table" id="customerTable">
             <thead><tr><th>Name</th><th>Type</th><th>Phone</th><th>Email</th><th>Address</th><th>Equipment</th><th>Notes</th><th>Owner</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
+          </div>
         </section>
 
         <!-- Owners (old table) -->
@@ -262,10 +268,12 @@
               </select>
             </label>
           </div>
+          <div class="table-wrap">
           <table class="data-table" id="ownerTable">
             <thead><tr><th>Name</th><th>Type</th><th>Phone</th><th>Email</th><th>Username</th><th>Properties</th><th>Billing</th><th>Autopay</th><th>Login set up?</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
+          </div>
         </section>
       </div>
 
@@ -310,10 +318,12 @@
               </select>
             </label>
           </div>
+          <div class="table-wrap">
           <table class="data-table" id="invoiceTable">
             <thead><tr><th>Home</th><th>Amount</th><th>Issued</th><th>Due</th><th>Status</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
+          </div>
         </section>
 
         <!-- Monthly-billed / vacation-rental owners: jobs accumulating toward a
@@ -324,10 +334,12 @@
             <h1>Monthly Invoicing</h1>
           </div>
           <p class="portal-hint" style="margin:0 0 12px;">Owners on Monthly billing, or with at least one vacation-rental property, don't need each completed job sent individually — their jobs sit here and accumulate until you generate that month's combined invoice.</p>
+          <div class="table-wrap">
           <table class="data-table" id="monthlyPendingTable">
             <thead><tr><th>Owner</th><th>Properties</th><th>Billing</th><th>Pending jobs</th><th>Pending total</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
+          </div>
         </section>
 
         <!-- Reports (old) -->
@@ -339,10 +351,12 @@
           <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-bottom:16px;">
             <h3>Uncompleted tasks</h3>
             <p class="portal-sub" style="margin:0 0 8px;">Jobs whose scheduled date has already passed but were never marked complete or cancelled — usually a missed visit or one the tech forgot to close out.</p>
+            <div class="table-wrap">
             <table class="data-table">
               <thead><tr><th>Date</th><th>Days overdue</th><th>Home</th><th>Service</th><th>Technician</th><th></th></tr></thead>
               <tbody id="uncompletedTasksBody"></tbody>
             </table>
+            </div>
           </div>
           <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-bottom:16px;">
             <h3>Service history by owner</h3>
@@ -366,10 +380,12 @@
           </div>
           <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-top:16px;">
             <h3>Cancelled visits</h3>
+            <div class="table-wrap">
             <table class="data-table">
               <thead><tr><th>Date</th><th>Home</th><th>Service</th><th>Cancellation fee</th></tr></thead>
               <tbody id="cancelledVisitsBody"></tbody>
             </table>
+            </div>
           </div>
           <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-top:16px;">
             <h3>Completed jobs missing an invoice</h3>
@@ -380,10 +396,12 @@
               <select id="missingInvoiceTierSelect" class="hidden" style="max-width:220px;"></select>
               <button class="btn primary small" id="assignMissingInvoiceServiceBtn" onclick="assignServiceToMissingInvoices()">Assign & invoice selected</button>
             </div>
+            <div class="table-wrap">
             <table class="data-table">
               <thead><tr><th><input type="checkbox" id="missingInvoiceSelectAll" onchange="toggleAllMissingInvoice(this)" /></th><th>Date</th><th>Home</th><th>Technician</th><th>Service label</th></tr></thead>
               <tbody id="missingInvoiceBody"></tbody>
             </table>
+            </div>
           </div>
         </section>
       </div>
@@ -419,10 +437,12 @@
             <button class="btn primary" id="newTechBtn">+ New Technician</button>
           </div>
           <p class="portal-hint">Technicians log into their own job list at <code id="techPortalLink"></code> using the username/password you set below.</p>
+          <div class="table-wrap">
           <table class="data-table" id="techTable">
             <thead><tr><th>Name</th><th>Phone</th><th>Email</th><th>Hourly rate</th><th>Username</th><th>Login set up?</th><th>Upcoming time off</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
+          </div>
         </section>
 
         <!-- Timesheets / Payroll (old table) -->
@@ -440,10 +460,12 @@
             <label>To <input type="date" id="timesheetToFilter" /></label>
           </div>
           <div class="stat-cards" id="timesheetStats"></div>
+          <div class="table-wrap">
           <table class="data-table" id="timesheetTable">
             <thead><tr><th>Technician</th><th>Date</th><th>Hours</th><th>Gas stipend</th><th>Wages</th><th>Pay</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
+          </div>
         </section>
 
         <!-- Payouts — actual payments made to techs, separate from timesheets'
@@ -460,10 +482,12 @@
               <select id="payoutTechFilter"><option value="">All technicians</option></select>
             </label>
           </div>
+          <div class="table-wrap">
           <table class="data-table" id="payoutTable">
             <thead><tr><th>Technician</th><th>Date</th><th>Amount</th><th>Note</th><th></th></tr></thead>
             <tbody></tbody>
           </table>
+          </div>
         </section>
       </div>
 
@@ -654,10 +678,12 @@
               </select>
             </label>
           </div>
+          <div class="table-wrap">
           <table class="data-table">
             <thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Properties</th><th>Status</th><th>Agreed on</th><th></th></tr></thead>
             <tbody id="agreementsBody"></tbody>
           </table>
+          </div>
         </section>
       </div>
     </div>
