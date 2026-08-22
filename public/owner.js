@@ -1274,6 +1274,83 @@ document.getElementById('togglePasswordLoginBtn').addEventListener('click', () =
   document.getElementById('codeLoginStep2').classList.add('hidden');
 });
 
+// ---- Forgot password (only reachable from the username/password fallback above —
+// the default email+code login already doubles as "I forgot my password") ----
+let resetPasswordEmail = '';
+
+function hideForgotPasswordViews() {
+  document.getElementById('forgotPasswordStep1').classList.add('hidden');
+  document.getElementById('forgotPasswordStep2').classList.add('hidden');
+}
+
+document.getElementById('showForgotPasswordBtn').addEventListener('click', () => {
+  loginError.classList.add('hidden');
+  document.getElementById('passwordLoginFields').classList.add('hidden');
+  document.getElementById('forgotPasswordEmail').value = document.getElementById('loginUsername').value.includes('@')
+    ? document.getElementById('loginUsername').value
+    : '';
+  document.getElementById('forgotPasswordStep2').classList.add('hidden');
+  document.getElementById('forgotPasswordStep1').classList.remove('hidden');
+});
+
+document.getElementById('cancelForgotPasswordBtn').addEventListener('click', () => {
+  hideForgotPasswordViews();
+  document.getElementById('passwordLoginFields').classList.remove('hidden');
+});
+
+document.getElementById('forgotPasswordStep1').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  loginError.classList.add('hidden');
+  const email = document.getElementById('forgotPasswordEmail').value.trim();
+  if (!email) { showError('Please enter your email.'); return; }
+  const btn = document.getElementById('sendResetCodeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    await api('/api/owner-auth/request-password-reset', { method: 'POST', body: JSON.stringify({ email }) });
+    resetPasswordEmail = email;
+    document.getElementById('resetCodeSentTo').textContent =
+      `If ${email} is on file, we've sent it a reset code. Enter it below along with your new password.`;
+    document.getElementById('forgotPasswordStep1').classList.add('hidden');
+    document.getElementById('forgotPasswordStep2').classList.remove('hidden');
+    document.getElementById('resetCodeInput').focus();
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send reset code';
+  }
+});
+
+document.getElementById('resendResetCodeBtn').addEventListener('click', () => {
+  document.getElementById('forgotPasswordEmail').value = resetPasswordEmail;
+  document.getElementById('forgotPasswordStep2').classList.add('hidden');
+  document.getElementById('forgotPasswordStep1').classList.remove('hidden');
+});
+
+document.getElementById('forgotPasswordStep2').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  loginError.classList.add('hidden');
+  const code = document.getElementById('resetCodeInput').value.trim();
+  const newPassword = document.getElementById('resetNewPassword').value;
+  if (!code) { showError('Please enter the code from your email.'); return; }
+  if (!newPassword || newPassword.length < 6) { showError('Choose a password with at least 6 characters.'); return; }
+  const btn = document.getElementById('submitResetPasswordBtn');
+  btn.disabled = true;
+  try {
+    const owner = await api('/api/owner-auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email: resetPasswordEmail, code, newPassword }),
+    });
+    hideForgotPasswordViews();
+    await enterPortal(owner);
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 let codeLoginEmail = '';
 
 async function sendLoginCode() {

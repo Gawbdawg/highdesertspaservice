@@ -56,6 +56,30 @@
           <label>Username<input type="text" id="loginUsername" autocomplete="username" /></label>
           <label>Password<input type="password" id="loginPassword" autocomplete="current-password" /></label>
           <button class="btn primary" type="submit" id="loginBtn">Log in</button>
+          <button class="btn small" type="button" id="showForgotPasswordBtn" style="margin-top:6px;">Forgot password?</button>
+        </form>
+
+        <!-- Forgot password, step 1: email a reset code. Only reachable from the
+             username/password fallback above — the default email+code login is
+             already effectively "I forgot my password", so there's nothing to reset
+             from there. -->
+        <form id="forgotPasswordStep1" class="hidden" style="margin-top:12px;">
+          <p class="portal-sub" style="margin:0 0 8px;">Enter your email and we'll send you a code to reset your password.</p>
+          <label>Email<input type="email" id="forgotPasswordEmail" autocomplete="email" /></label>
+          <button class="btn primary" type="submit" id="sendResetCodeBtn">Send reset code</button>
+          <button class="btn small" type="button" id="cancelForgotPasswordBtn" style="margin-top:6px;">Back to log in</button>
+        </form>
+
+        <!-- Forgot password, step 2: enter the code + a new password in one step —
+             see POST /reset-password in routes/ownerAuth.js, which verifies the code
+             and sets the new password together rather than needing a separate
+             "verified" session step in between. -->
+        <form id="forgotPasswordStep2" class="hidden" style="margin-top:12px;">
+          <p class="portal-sub" id="resetCodeSentTo" style="margin:0 0 8px;"></p>
+          <label>6-digit code<input type="text" id="resetCodeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" /></label>
+          <label>New password<input type="password" id="resetNewPassword" autocomplete="new-password" /></label>
+          <button class="btn primary" type="submit" id="submitResetPasswordBtn">Set new password</button>
+          <button class="btn small" type="button" id="resendResetCodeBtn" style="margin-top:6px;">Send a new code</button>
         </form>
 
         <div style="border-top:1px solid #eef1f2; margin-top:16px; padding-top:12px;">

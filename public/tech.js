@@ -503,6 +503,82 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   }
 });
 
+// ---- Forgot password (techs only ever log in with username+password, so this is
+// their only self-service way back in) ----
+let resetPasswordEmail = '';
+
+function hideForgotPasswordViews() {
+  document.getElementById('forgotPasswordStep1').classList.add('hidden');
+  document.getElementById('forgotPasswordStep2').classList.add('hidden');
+}
+
+document.getElementById('showForgotPasswordBtn').addEventListener('click', () => {
+  loginError.classList.add('hidden');
+  document.getElementById('loginForm').classList.add('hidden');
+  document.getElementById('forgotPasswordEmail').value = '';
+  document.getElementById('forgotPasswordStep2').classList.add('hidden');
+  document.getElementById('forgotPasswordStep1').classList.remove('hidden');
+});
+
+document.getElementById('cancelForgotPasswordBtn').addEventListener('click', () => {
+  hideForgotPasswordViews();
+  document.getElementById('loginForm').classList.remove('hidden');
+});
+
+document.getElementById('forgotPasswordStep1').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  loginError.classList.add('hidden');
+  const email = document.getElementById('forgotPasswordEmail').value.trim();
+  if (!email) { showError('Please enter your email.'); return; }
+  const btn = document.getElementById('sendResetCodeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    await api('/api/tech-auth/request-password-reset', { method: 'POST', body: JSON.stringify({ email }) });
+    resetPasswordEmail = email;
+    document.getElementById('resetCodeSentTo').textContent =
+      `If ${email} is on file, we've sent it a reset code. Enter it below along with your new password.`;
+    document.getElementById('forgotPasswordStep1').classList.add('hidden');
+    document.getElementById('forgotPasswordStep2').classList.remove('hidden');
+    document.getElementById('resetCodeInput').focus();
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Send reset code';
+  }
+});
+
+document.getElementById('resendResetCodeBtn').addEventListener('click', () => {
+  document.getElementById('forgotPasswordEmail').value = resetPasswordEmail;
+  document.getElementById('forgotPasswordStep2').classList.add('hidden');
+  document.getElementById('forgotPasswordStep1').classList.remove('hidden');
+});
+
+document.getElementById('forgotPasswordStep2').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  loginError.classList.add('hidden');
+  const code = document.getElementById('resetCodeInput').value.trim();
+  const newPassword = document.getElementById('resetNewPassword').value;
+  if (!code) { showError('Please enter the code from your email.'); return; }
+  if (!newPassword || newPassword.length < 6) { showError('Choose a password with at least 6 characters.'); return; }
+  const btn = document.getElementById('submitResetPasswordBtn');
+  btn.disabled = true;
+  try {
+    const tech = await api('/api/tech-auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email: resetPasswordEmail, code, newPassword }),
+    });
+    hideForgotPasswordViews();
+    document.getElementById('loginForm').classList.remove('hidden');
+    showJobs(tech);
+  } catch (e) {
+    showError(e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 logoutBtn.addEventListener('click', async () => {
   await api('/api/tech-auth/logout', { method: 'POST' });
   checkSession();

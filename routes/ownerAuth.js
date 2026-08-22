@@ -117,6 +117,44 @@ router.post('/verify-code', (req, res) => {
   res.json({ ...sanitizeOwner(owner), viaAdminView: false });
 });
 
+// ---- Forgot password: emailed one-time code, then set a brand-new password ----
+// Deliberately its own flow rather than reusing the account-settings password change
+// (routes/ownerPortal.js PUT /account) — that endpoint requires the CURRENT password
+// when one is already set, which is exactly what an owner who forgot their password
+// doesn't have. Here, a verified code IS the proof of identity instead.
+router.post('/request-password-reset', async (req, res) => {
+  const { email } = req.body;
+  if (!email || !email.trim()) return res.status(400).json({ error: 'Email is required' });
+  try {
+    await requestLoginCode('owners', email, {
+      subjectPrefix: 'High Desert Spa Service',
+      greetingName: 'there',
+      purpose: 'reset',
+    });
+  } catch (err) {
+    console.error('Failed to send owner password reset code:', err.message);
+  }
+  // Same generic response either way — never reveals whether that email has an
+  // account, matching the existing /request-code endpoint above.
+  res.json({ sent: true, message: "If that email is on file, we've sent a password reset code." });
+});
+
+router.post('/reset-password', (req, res) => {
+  const { email, code, newPassword } = req.body;
+  if (!email || !code || !newPassword) {
+    return res.status(400).json({ error: 'Email, code, and a new password are required' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Choose a password with at least 6 characters' });
+  }
+  const owner = verifyLoginCode('owners', email, code);
+  if (!owner) return res.status(401).json({ error: 'That code is incorrect or has expired — request a new one.' });
+  const updated = store.update('owners', owner.id, { passwordHash: hashPassword(newPassword) });
+  req.session.ownerId = updated.id;
+  req.session.viaAdminView = false;
+  res.json({ ...sanitizeOwner(updated), viaAdminView: false });
+});
+
 // Lets a logged-in admin jump straight into an owner's portal view without needing
 // that owner's password. Sets viaAdminView on the session so the frontend skips the
 // first-login Terms of Service gate for this visit (see enterPortal() in owner.js) —

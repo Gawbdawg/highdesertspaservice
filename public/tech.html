@@ -28,6 +28,27 @@
           <label>Username<input type="text" id="loginUsername" autocomplete="username" /></label>
           <label>Password<input type="password" id="loginPassword" autocomplete="current-password" /></label>
           <button class="btn primary" type="submit" id="loginBtn">Log in</button>
+          <button class="btn small" type="button" id="showForgotPasswordBtn" style="margin-top:6px;">Forgot password?</button>
+        </form>
+
+        <!-- Forgot password, step 1: email a reset code. Techs only ever log in with
+             username+password (no email-code login option like the owner portal), so
+             this is their only self-service way back in if they forget it. -->
+        <form id="forgotPasswordStep1" class="hidden" style="margin-top:12px;">
+          <p class="portal-sub" style="margin:0 0 8px;">Enter your email and we'll send you a code to reset your password.</p>
+          <label>Email<input type="email" id="forgotPasswordEmail" autocomplete="email" /></label>
+          <button class="btn primary" type="submit" id="sendResetCodeBtn">Send reset code</button>
+          <button class="btn small" type="button" id="cancelForgotPasswordBtn" style="margin-top:6px;">Back to log in</button>
+        </form>
+
+        <!-- Forgot password, step 2: code + new password together — see POST
+             /reset-password in routes/techAuth.js. -->
+        <form id="forgotPasswordStep2" class="hidden" style="margin-top:12px;">
+          <p class="portal-sub" id="resetCodeSentTo" style="margin:0 0 8px;"></p>
+          <label>6-digit code<input type="text" id="resetCodeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" /></label>
+          <label>New password<input type="password" id="resetNewPassword" autocomplete="new-password" /></label>
+          <button class="btn primary" type="submit" id="submitResetPasswordBtn">Set new password</button>
+          <button class="btn small" type="button" id="resendResetCodeBtn" style="margin-top:6px;">Send a new code</button>
         </form>
       </section>
 
