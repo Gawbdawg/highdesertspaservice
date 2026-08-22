@@ -77,6 +77,16 @@ router.put('/newsletter-subscription', (req, res) => {
   res.json({ newsletterSubscribed: updated.newsletterSubscribed });
 });
 
+// Opt-in (default off — see owner.jobCompletionEmailsEnabled, never set true anywhere
+// but here and on owner creation, which also defaults it false) toggle for a short
+// email whenever one of this owner's properties gets a visit marked completed. Off by
+// default because unlike the newsletter this fires per-visit, not occasionally, so an
+// owner should choose it rather than start there and have to notice and turn it off.
+router.put('/job-completion-emails', (req, res) => {
+  const updated = store.update('owners', req.session.ownerId, { jobCompletionEmailsEnabled: !!req.body.enabled });
+  res.json({ jobCompletionEmailsEnabled: updated.jobCompletionEmailsEnabled });
+});
+
 // Records that this owner has clicked through the Terms of Service gate shown on
 // first login (see public/owner.js — checkSession() shows that screen instead of the
 // dashboard until this has been recorded). Timestamped for a paper trail alongside

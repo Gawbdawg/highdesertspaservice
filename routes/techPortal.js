@@ -6,6 +6,7 @@ const { geocodeAddress } = require('../lib/geocode');
 const { summarizeByDay } = require('../lib/timesheet');
 const { savePhoto, deletePhoto } = require('../lib/uploads');
 const { syncInvoiceForCompletedAppointment } = require('../lib/autoInvoice');
+const { notifyOwnerJobCompleted } = require('../lib/jobCompletionEmail');
 const chemistry = require('../lib/chemistry');
 const router = express.Router();
 
@@ -151,8 +152,12 @@ router.put('/appointments/:id/status', (req, res) => {
   if (!['scheduled', 'completed'].includes(status)) {
     return res.status(400).json({ error: 'Invalid status' });
   }
+  const justCompleted = appt.status !== 'completed' && status === 'completed';
   const updated = store.update('appointments', req.params.id, { status });
   syncInvoiceForCompletedAppointment(updated);
+  // Only on the actual scheduled->completed transition, not on every later edit to an
+  // already-completed job (e.g. re-saving chemistry readings shouldn't re-notify).
+  if (justCompleted) notifyOwnerJobCompleted(updated, 'High Desert Spa Service');
   res.json(hideApptAddonPrices(updated));
 });
 

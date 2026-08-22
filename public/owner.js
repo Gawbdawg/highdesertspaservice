@@ -120,6 +120,7 @@ async function showDash(owner) {
   logoutBtn.style.display = '';
   document.getElementById('welcomeMsg').textContent = `Hi ${owner.name}`;
   document.getElementById('newsletterToggle').checked = owner.newsletterSubscribed !== false;
+  document.getElementById('jobCompletionEmailToggle').checked = !!owner.jobCompletionEmailsEnabled;
   document.getElementById('adminViewingBanner').classList.toggle('hidden', !owner.viaAdminView);
   if (owner.viaAdminView) document.getElementById('adminViewingOwnerName').textContent = owner.name;
 
@@ -1466,6 +1467,22 @@ document.getElementById('newsletterToggle').addEventListener('change', async (e)
     statusEl.textContent = subscribed ? 'Saved — you\'re on the list.' : "Saved — you're unsubscribed.";
   } catch (err) {
     e.target.checked = !subscribed;
+    statusEl.textContent = 'Could not save that — please try again.';
+  } finally {
+    e.target.disabled = false;
+  }
+});
+
+// ---- Job-completion email opt in/out (off by default, unlike the newsletter) ----
+document.getElementById('jobCompletionEmailToggle').addEventListener('change', async (e) => {
+  const statusEl = document.getElementById('jobCompletionEmailToggleStatus');
+  const enabled = e.target.checked;
+  e.target.disabled = true;
+  try {
+    await api('/api/owner/job-completion-emails', { method: 'PUT', body: JSON.stringify({ enabled }) });
+    statusEl.textContent = enabled ? "Saved — you'll get an email each time a visit is completed." : 'Saved — turned off.';
+  } catch (err) {
+    e.target.checked = !enabled;
     statusEl.textContent = 'Could not save that — please try again.';
   } finally {
     e.target.disabled = false;

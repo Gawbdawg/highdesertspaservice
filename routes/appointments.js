@@ -2,6 +2,7 @@ const express = require('express');
 const store = require('../lib/store');
 const { sendSms } = require('../lib/sms');
 const { syncInvoiceForCompletedAppointment, createOrSyncInvoiceWithTier } = require('../lib/autoInvoice');
+const { notifyOwnerJobCompleted } = require('../lib/jobCompletionEmail');
 const { makeCustomerMatcher } = require('../lib/customerMatch');
 const { futureDates } = require('../lib/recurrence');
 const router = express.Router();
@@ -80,6 +81,7 @@ router.post('/', (req, res) => {
 });
 
 router.put('/:id', (req, res) => {
+  const before = store.getById('appointments', req.params.id);
   const updates = { ...req.body };
   delete updates.recurrence;
   delete updates.recurrenceEndDate;
@@ -90,6 +92,12 @@ router.put('/:id', (req, res) => {
   const updated = store.update('appointments', req.params.id, updates);
   if (!updated) return res.status(404).json({ error: 'Appointment not found' });
   syncInvoiceForCompletedAppointment(updated);
+  // Only on the actual scheduled->completed transition (e.g. the admin marking a job
+  // done from the Daily Dispatch board), not on every later edit to an already-
+  // completed appointment.
+  if (before && before.status !== 'completed' && updated.status === 'completed') {
+    notifyOwnerJobCompleted(updated, 'High Desert Spa Service');
+  }
   res.json(enrich(updated));
 });
 
