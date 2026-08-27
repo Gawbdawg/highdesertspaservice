@@ -410,6 +410,24 @@
       </section>
     </main>
   </div>
+
+  <div class="modal-overlay hidden" id="moveVisitOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Move this service</h2>
+        <button class="btn-close" id="moveVisitCloseBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="portal-hint" id="moveVisitHint" style="margin:0;"></p>
+        <label>New date <input type="date" id="moveVisitDate" /></label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn small" id="moveVisitCancelBtn">Never mind</button>
+        <button class="btn small primary" id="moveVisitConfirmBtn">Move service</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/owner.js"></script>
 </body>
 </html>

@@ -764,7 +764,12 @@ async function loadVisits() {
       ${v.status === 'scheduled' ? renderVisitAddons(v) : (v.addons && v.addons.length ? `<div class="job-meta">Extras: ${v.addons.map((a) => `${a.name} ($${Number(a.price).toFixed(2)})`).join(', ')}</div>` : '')}
       ${v.note ? `<div class="tech-note-callout"><strong>Note from your technician:</strong> ${v.note}</div>` : ''}
       ${renderVisitPhotos(v)}
-      ${v.status === 'scheduled' ? `<button class="btn small danger" style="margin-top:8px;" onclick="cancelVisit(${v.id}, '${v.date}', '${v.startTime || ''}')">Cancel service</button>` : ''}
+      ${v.status === 'scheduled' ? `
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button class="btn small" onclick="moveVisit(${v.id}, '${v.date}', '${v.startTime || ''}')">Move</button>
+          <button class="btn small danger" onclick="cancelVisit(${v.id}, '${v.date}', '${v.startTime || ''}')">Cancel service</button>
+        </div>
+      ` : ''}
     </div>
   `).join('');
 }
@@ -817,6 +822,54 @@ window.cancelVisit = async (apptId, dateStr, startTime) => {
     alert(e.message || 'Could not cancel this service.');
   }
 };
+
+// Rescheduling policy mirrors cancellation (see routes/ownerPortal.js#/appointments/:id/move):
+// 24+ hours' notice is free, less than 24 hours bills the same half-price fee a
+// cancellation would. moveVisitApptId tracks which visit the open modal applies to.
+let moveVisitApptId = null;
+
+window.moveVisit = (apptId, dateStr, startTime) => {
+  moveVisitApptId = apptId;
+  const visitDateTime = businessTimeToUtc(dateStr, startTime);
+  const hoursUntil = (visitDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
+  document.getElementById('moveVisitHint').textContent = hoursUntil < 24
+    ? 'This service is less than 24 hours away. Our cancellation policy also applies to last-minute moves — a fee of half the service price will be charged.'
+    : "Pick a new date for this service — it's more than 24 hours away, so there's no fee.";
+  const dateInput = document.getElementById('moveVisitDate');
+  dateInput.min = new Date().toISOString().slice(0, 10);
+  dateInput.value = '';
+  document.getElementById('moveVisitOverlay').classList.remove('hidden');
+};
+
+function closeMoveVisitModal() {
+  document.getElementById('moveVisitOverlay').classList.add('hidden');
+  moveVisitApptId = null;
+}
+document.getElementById('moveVisitCloseBtn').addEventListener('click', closeMoveVisitModal);
+document.getElementById('moveVisitCancelBtn').addEventListener('click', closeMoveVisitModal);
+
+document.getElementById('moveVisitConfirmBtn').addEventListener('click', async () => {
+  const date = document.getElementById('moveVisitDate').value;
+  if (!date) { alert('Pick a date first.'); return; }
+  const apptId = moveVisitApptId;
+  try {
+    const result = await api(`/api/owner/appointments/${apptId}/move`, {
+      method: 'POST',
+      body: JSON.stringify({ date }),
+    });
+    closeMoveVisitModal();
+    if (result.feeCharged) {
+      alert(`Service moved to ${niceDate(result.newDate)}. A $${Number(result.feeAmount).toFixed(2)} fee applies since this was within 24 hours.`);
+    } else {
+      alert(`Service moved to ${niceDate(result.newDate)} — no fee.`);
+    }
+    loadVisits();
+    loadOverview();
+    if (typeof loadOwnerCalendar === 'function' && document.getElementById('svcCalGrid')) loadOwnerCalendar();
+  } catch (e) {
+    alert(e.message || 'Could not move this service.');
+  }
+});
 
 function renderVisitPhotos(v) {
   const photos = v.photos || [];
@@ -1125,7 +1178,12 @@ window.onSvcCalDayClick = (dateStr) => {
         ${showPropertyLabel ? `<div class="job-meta">${a.propertyName}</div>` : ''}
         ${a.serviceType ? `<div class="job-meta">${a.serviceType}</div>` : ''}
         ${a.addons && a.addons.length ? `<div class="job-meta">Extras: ${a.addons.map((x) => x.name).join(', ')}</div>` : ''}
-        ${a.status === 'scheduled' ? `<button class="btn small danger" style="margin-top:6px;" onclick="cancelVisit(${a.id}, '${a.date}', '${a.startTime || ''}')">Cancel service</button>` : ''}
+        ${a.status === 'scheduled' ? `
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button class="btn small" onclick="moveVisit(${a.id}, '${a.date}', '${a.startTime || ''}')">Move</button>
+            <button class="btn small danger" onclick="cancelVisit(${a.id}, '${a.date}', '${a.startTime || ''}')">Cancel service</button>
+          </div>
+        ` : ''}
       </div>
     `).join('');
   }

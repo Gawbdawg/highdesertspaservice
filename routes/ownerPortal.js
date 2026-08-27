@@ -577,6 +577,52 @@ router.post('/appointments/:id/cancel', (req, res) => {
   });
 });
 
+// Rescheduling follows the same 24-hour policy as cancelling: moving a visit with
+// 24+ hours' notice is free, moving it less than 24 hours before its currently
+// scheduled time bills half the service price. From the day's route perspective, a
+// visit that gets pulled off today's schedule at the last minute is exactly as
+// disruptive whether the owner cancelled it outright or just moved it to another day
+// — so this reuses maybeCreateCancellationFeeInvoice with wording that matches what
+// actually happened. Only an upcoming ('scheduled') visit on one of the owner's own
+// properties can be moved this way.
+router.post('/appointments/:id/move', (req, res) => {
+  const appt = myUpcomingAppointment(req, req.params.id);
+  if (!appt) return res.status(404).json({ error: 'Upcoming visit not found' });
+
+  const { date } = req.body;
+  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return res.status(400).json({ error: 'A valid new date is required' });
+  }
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (date < todayStr) {
+    return res.status(400).json({ error: 'New date cannot be in the past' });
+  }
+  if (date === appt.date) {
+    return res.status(400).json({ error: "That's already this visit's scheduled date" });
+  }
+
+  // Same timezone-safe hours-until-visit check as /appointments/:id/cancel above,
+  // computed against the OLD date/time — that's the slot actually being given up.
+  const visitDateTime = businessTimeToUtc(appt.date, appt.startTime);
+  const hoursUntilVisit = (visitDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
+  const withinCancellationWindow = hoursUntilVisit < 24;
+
+  const updated = store.update('appointments', req.params.id, { date });
+  const feeInvoice = withinCancellationWindow
+    ? maybeCreateCancellationFeeInvoice(
+        updated,
+        `Reschedule fee — visit moved to a new date within 24 hours of its original scheduled time (50% of the service price).`
+      )
+    : null;
+
+  res.json({
+    moved: true,
+    newDate: updated.date,
+    feeCharged: !!feeInvoice,
+    feeAmount: feeInvoice ? feeInvoice.amount : 0,
+  });
+});
+
 // ---- Occupied / guest-booking date ranges (scoped to one of this owner's properties) ----
 router.get('/bookings', (req, res) => {
   const myPropertyIds = store.getAll('customers')
