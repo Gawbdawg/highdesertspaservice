@@ -5,6 +5,8 @@ const ai = require('../lib/ai');
 const { invoiceDescription } = require('../lib/invoiceDescription');
 const waveSync = require('../lib/waveSync');
 const { ownerQualifiesForMonthly } = require('../lib/monthlyInvoice');
+const { attemptAutopay, resolveOwnerForInvoice } = require('../lib/autopay');
+const stripe = require('../lib/stripeClient');
 const router = express.Router();
 
 function money(n) {
@@ -32,6 +34,7 @@ function enrich(inv) {
       isCombined: true,
       // A combined invoice IS the thing that needs sending/collecting — never deferred.
       isMonthlyDeferred: false,
+      autopayReady: invoiceAutopayReady(inv),
     };
   }
   const customer = store.getById('customers', inv.customerId);
@@ -52,7 +55,21 @@ function enrich(inv) {
     customerName: customer ? customer.name : 'Unknown customer',
     isCombined: hasLineItems,
     isMonthlyDeferred,
+    autopayReady: invoiceAutopayReady(inv),
   };
+}
+
+// Whether this draft invoice can be charged on the spot with the "Process payment"
+// button instead of needing "Email invoice" — true only when the owner it bills has
+// autopay turned on AND already has a card on file (see routes/ownerPortal.js's
+// autopay enable/disable endpoints and routes/stripeWebhook.js for how that card gets
+// saved). Anything else — no owner, autopay off, no saved card, already
+// sent/paid/bundled — falls back to the normal manual email flow.
+function invoiceAutopayReady(inv) {
+  if (inv.status !== 'draft') return false;
+  if (!stripe.isConfigured()) return false;
+  const owner = resolveOwnerForInvoice(inv);
+  return !!(owner && owner.autopayEnabled && owner.stripeCustomerId && owner.stripePaymentMethodId);
 }
 
 router.get('/', (req, res) => {
@@ -105,6 +122,69 @@ router.put('/:id', (req, res) => {
     waveSync.recordWavePayment(updated.id).catch(() => {});
   }
   res.json(enrich(updated));
+});
+
+// Admin-triggered charge against the owner's saved card — the "Process payment"
+// button that replaces "Email invoice" for any owner with autopay + a card on file
+// (see invoiceAutopayReady above). Autopay used to fire this automatically the
+// moment a job's invoice was created; now every invoice always lands as a normal
+// draft first so the admin can review it, and this is the one place that actually
+// charges anything. Reuses lib/autopay.js#attemptAutopay — the exact same Stripe
+// off-session charge logic autopay always used — just called on purpose instead of
+// automatically.
+router.post('/:id/process-payment', async (req, res) => {
+  const invoice = store.getById('invoices', req.params.id);
+  if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
+  if (invoice.status !== 'draft') {
+    return res.status(400).json({ error: 'Only a draft invoice can be charged this way.' });
+  }
+  if (!stripe.isConfigured()) {
+    return res.status(400).json({ error: "Stripe isn't configured yet — see Settings/README." });
+  }
+  const owner = resolveOwnerForInvoice(invoice);
+  if (!owner || !owner.autopayEnabled || !owner.stripeCustomerId || !owner.stripePaymentMethodId) {
+    return res.status(400).json({ error: "This owner doesn't have autopay set up with a card on file — email the invoice instead, or have them turn on autopay from their portal." });
+  }
+
+  await attemptAutopay(invoice);
+  const fresh = store.getById('invoices', req.params.id);
+  if (fresh.status === 'paid') {
+    waveSync.recordWavePayment(fresh.id).catch(() => {});
+    return res.json({ processed: true, invoice: enrich(fresh) });
+  }
+  return res.status(400).json({ error: fresh.autopayLastError || 'The charge did not go through — see the server log for details.' });
+});
+
+// Pulls one job's charge back out of an already-generated combined monthly invoice —
+// e.g. a cancellation fee that got swept in for a visit the admin ended up cancelling
+// outright, and shouldn't actually be billed. Reverts that job's own original invoice
+// back to a normal 'draft' (same as fully deleting a combined invoice does for every
+// line item at once — see DELETE /:id below) so it's immediately visible/collectible
+// again on its own, then recomputes the combined invoice's total from what's left. If
+// that was the last line item, the now-empty combined invoice is removed outright
+// rather than leaving a $0 invoice sitting in the list.
+router.delete('/:id/line-items/:sourceInvoiceId', (req, res) => {
+  const invoice = store.getById('invoices', req.params.id);
+  if (!invoice || !(invoice.lineItems || []).length) {
+    return res.status(404).json({ error: 'Combined invoice not found' });
+  }
+  const sourceInvoiceId = Number(req.params.sourceInvoiceId);
+  const lineItem = invoice.lineItems.find((li) => li.sourceInvoiceId === sourceInvoiceId);
+  if (!lineItem) return res.status(404).json({ error: 'That job is not on this invoice' });
+
+  const source = store.getById('invoices', sourceInvoiceId);
+  if (source && source.bundledIntoInvoiceId === invoice.id) {
+    store.update('invoices', source.id, { status: 'draft', bundledIntoInvoiceId: null });
+  }
+
+  const remainingLineItems = invoice.lineItems.filter((li) => li.sourceInvoiceId !== sourceInvoiceId);
+  if (remainingLineItems.length === 0) {
+    store.remove('invoices', invoice.id);
+    return res.json({ removed: true, invoiceDeleted: true });
+  }
+  const newTotal = remainingLineItems.reduce((sum, li) => sum + Number(li.amount), 0);
+  const updated = store.update('invoices', invoice.id, { lineItems: remainingLineItems, amount: newTotal });
+  res.json({ removed: true, invoiceDeleted: false, invoice: enrich(updated) });
 });
 
 // Friendly description of what an invoice is billing for — used only in the "Email

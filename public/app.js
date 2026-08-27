@@ -2253,7 +2253,9 @@ function renderInvoiceTable() {
           ? `<button class="btn small" onclick="viewInvoiceLineItems(${i.bundledIntoInvoiceId})">View combined invoice</button>`
           : `
             <button class="btn small" onclick="viewInvoice(${i.id})">View invoice</button>
-            <button class="btn small" onclick="emailInvoice(${i.id})">Email invoice</button>
+            ${i.autopayReady
+              ? `<button class="btn small primary" onclick="processPayment(${i.id})">Process payment</button>`
+              : `<button class="btn small" onclick="emailInvoice(${i.id})">Email invoice</button>`}
             ${i.isCombined
               ? `<button class="btn small" onclick="viewInvoiceLineItems(${i.id})">View jobs</button>
                  <button class="btn small" onclick="editCombinedInvoice(${i.id})">Edit</button>`
@@ -2268,16 +2270,36 @@ function renderInvoiceTable() {
 
 window.viewInvoiceLineItems = (id) => {
   const i = state.invoices.find((x) => x.id === id);
+  const canRemove = !i.isCombined || i.status === 'draft' || i.status === 'sent';
   const rows = (i.lineItems || []).map((li) => `
     <div class="profile-history-item">
       <strong>${li.date} — ${li.customerName}</strong>
       <div class="meta">${li.serviceType} · ${money(li.amount)}</div>
+      ${canRemove ? `<button class="btn small danger" style="margin-top:4px;" onclick="removeInvoiceLineItem(${i.id}, ${li.sourceInvoiceId})">Remove from invoice</button>` : ''}
     </div>
   `).join('') || '<div class="empty-state">No jobs on this invoice.</div>';
   openModal(`Jobs on invoice #${i.id}`, `
+    <p class="portal-hint" style="margin:0 0 4px;">Removing a job here (e.g. a cancellation fee for a visit that ended up not billable) puts its own invoice back to draft on its own — it doesn't delete that charge, just pulls it out of this combined bill.</p>
     ${rows}
     <div class="modal-actions"><button class="btn" onclick="closeModal()">Close</button></div>
   `);
+};
+
+// Pulls one job's charge back out of an already-generated combined/monthly invoice —
+// see routes/invoices.js's DELETE /:id/line-items/:sourceInvoiceId. The job's own
+// original invoice reverts to a normal draft (shows back up in the main Invoices
+// list), and this combined invoice's total is recomputed from what's left — or, if
+// that was the last job on it, the now-empty combined invoice is removed entirely.
+window.removeInvoiceLineItem = async (invoiceId, sourceInvoiceId) => {
+  if (!confirm('Remove this job from the combined invoice? Its own invoice goes back to a normal draft.')) return;
+  try {
+    const result = await api(`/api/invoices/${invoiceId}/line-items/${sourceInvoiceId}`, { method: 'DELETE' });
+    closeModal();
+    await loadInvoices();
+    if (!result.invoiceDeleted) viewInvoiceLineItems(invoiceId);
+  } catch (e) {
+    alert('Could not remove that job: ' + e.message);
+  }
 };
 
 window.editCombinedInvoice = (id) => {
@@ -2333,6 +2355,21 @@ window.emailInvoice = async (id) => {
     await loadInvoices();
   } catch (e) {
     alert('Could not email this invoice: ' + e.message);
+  }
+};
+
+// Charges the owner's card on file right now — the "Process payment" button that
+// replaces "Email invoice" whenever the invoice's owner has autopay + a saved card
+// (see routes/invoices.js#invoiceAutopayReady). Autopay used to charge this the
+// instant the invoice was created; now it's this one deliberate admin click instead.
+window.processPayment = async (id) => {
+  if (!confirm('Charge this invoice to the card on file now?')) return;
+  try {
+    const result = await api(`/api/invoices/${id}/process-payment`, { method: 'POST' });
+    alert(`Charged ${money(result.invoice.amount)} — invoice marked paid.`);
+    await loadInvoices();
+  } catch (e) {
+    alert('Could not process this payment: ' + e.message);
   }
 };
 

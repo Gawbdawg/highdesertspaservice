@@ -5,6 +5,7 @@ const { syncCustomerCalendar, guessLabel } = require('../lib/icalSync');
 const { maybeCreateCheckoutAppointment } = require('../lib/turnoverSchedule');
 const { geocodeAddress } = require('../lib/geocode');
 const { previewFrequencyPricing, maybeCreateCancellationFeeInvoice } = require('../lib/autoInvoice');
+const { notifyAdminNewServiceRequest } = require('../lib/notifications');
 const { generateRecurringSeries } = require('../lib/scheduleFromFrequency');
 const { businessTimeToUtc } = require('../lib/timezone');
 const stripe = require('../lib/stripeClient');
@@ -680,7 +681,8 @@ router.post('/service-requests', (req, res) => {
   if (!propertyId || !requestedDate) {
     return res.status(400).json({ error: 'propertyId and requestedDate are required' });
   }
-  if (!myProperty(req, propertyId)) return res.status(404).json({ error: 'Property not found' });
+  const property = myProperty(req, propertyId);
+  if (!property) return res.status(404).json({ error: 'Property not found' });
   // Snapshot the chosen upcharges' name/price at request time, same as everywhere else
   // addons are attached — so a later catalog price change doesn't change what was asked
   // for. Carried onto the appointment automatically when an admin schedules this request
@@ -696,6 +698,13 @@ router.post('/service-requests', (req, res) => {
     notes: notes || '',
     status: 'pending',
     addons,
+  });
+  const owner = store.getById('owners', req.session.ownerId);
+  notifyAdminNewServiceRequest({
+    ownerName: owner ? owner.name : null,
+    propertyName: property.name,
+    requestedDate,
+    notes: notes || '',
   });
   res.status(201).json(request);
 });
