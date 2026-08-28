@@ -66,7 +66,7 @@ function enrich(inv) {
 // saved). Anything else — no owner, autopay off, no saved card, already
 // sent/paid/bundled — falls back to the normal manual email flow.
 function invoiceAutopayReady(inv) {
-  if (inv.status !== 'draft') return false;
+  if (inv.status !== 'draft' && inv.status !== 'sent') return false;
   if (!stripe.isConfigured()) return false;
   const owner = resolveOwnerForInvoice(inv);
   return !!(owner && owner.autopayEnabled && owner.stripeCustomerId && owner.stripePaymentMethodId);
@@ -135,8 +135,8 @@ router.put('/:id', (req, res) => {
 router.post('/:id/process-payment', async (req, res) => {
   const invoice = store.getById('invoices', req.params.id);
   if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
-  if (invoice.status !== 'draft') {
-    return res.status(400).json({ error: 'Only a draft invoice can be charged this way.' });
+  if (invoice.status !== 'draft' && invoice.status !== 'sent') {
+    return res.status(400).json({ error: 'This invoice is already paid or bundled into another invoice — nothing to charge.' });
   }
   if (!stripe.isConfigured()) {
     return res.status(400).json({ error: "Stripe isn't configured yet — see Settings/README." });
