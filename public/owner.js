@@ -1502,11 +1502,18 @@ document.getElementById('signupForm').addEventListener('submit', async (e) => {
   const btn = document.getElementById('createAccountBtn');
   btn.disabled = true;
   try {
-    const owner = await api('/api/owner-auth/signup', {
+    await api('/api/owner-auth/signup', {
       method: 'POST',
       body: JSON.stringify({ name, email, phone, username, password }),
     });
-    await enterPortal(owner);
+    // Signup already logged them in (see routes/ownerAuth.js — it sets
+    // req.session.ownerId before responding), so this session cookie is still valid
+    // when they come back. Sending them to the marketing site's confirmation page
+    // here — instead of straight into the Terms of Service gate / dashboard — is
+    // deliberate: "your account has been created" is true at this exact moment, and
+    // that page's own "Go to my account" button is what brings them back into the
+    // portal (still logged in) to actually agree to terms and get started.
+    window.location.href = 'https://highdesertspaservice.com/account-created';
   } catch (e) {
     errEl.textContent = e.message;
     errEl.classList.remove('hidden');
