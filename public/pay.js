@@ -13,14 +13,40 @@ async function load() {
   }
 }
 
+// A monthly bundle can easily hold a dozen-plus jobs, and most of them are the exact
+// same recurring service repeated week after week — listing each one on its own line
+// (same service name over and over, just a different date) reads as clutter rather
+// than as useful detail. Grouped by property + service type instead, so what shows is
+// "Weekly Maintenance × 4 — $400" rather than four near-identical rows; the property
+// name is only shown when this bundle actually spans more than one (an owner-wide
+// combined invoice), since a single-property bill has nothing to disambiguate.
+function groupLineItems(lineItems) {
+  const groups = [];
+  const byKey = new Map();
+  lineItems.forEach((li) => {
+    const key = `${li.customerName}||${li.serviceType}`;
+    let g = byKey.get(key);
+    if (!g) {
+      g = { customerName: li.customerName, serviceType: li.serviceType || 'Service', count: 0, total: 0 };
+      byKey.set(key, g);
+      groups.push(g);
+    }
+    g.count += 1;
+    g.total += Number(li.amount) || 0;
+  });
+  return groups;
+}
+
 function lineItemsHtml(invoice) {
   if (!invoice.lineItems || invoice.lineItems.length === 0) return '';
+  const groups = groupLineItems(invoice.lineItems);
+  const spansMultipleProperties = new Set(invoice.lineItems.map((li) => li.customerName)).size > 1;
   return `
     <div style="text-align:left; border-top:1px solid #eef1f2; border-bottom:1px solid #eef1f2; margin:12px 0; padding:8px 0;">
-      ${invoice.lineItems.map((li) => `
+      ${groups.map((g) => `
         <div style="display:flex; justify-content:space-between; font-size:13px; padding:3px 0; color:#46606b;">
-          <span>${li.date} — ${li.customerName} (${li.serviceType})</span>
-          <span>$${Number(li.amount).toFixed(2)}</span>
+          <span>${spansMultipleProperties ? g.customerName + ' — ' : ''}${g.serviceType}${g.count > 1 ? ` × ${g.count}` : ''}</span>
+          <span>$${g.total.toFixed(2)}</span>
         </div>
       `).join('')}
     </div>

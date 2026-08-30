@@ -2,6 +2,7 @@ const express = require('express');
 const store = require('../lib/store');
 const { hashPassword, sanitizeOwner } = require('../lib/auth');
 const { generateMonthlyInvoiceForOwner, ownerQualifiesForMonthly } = require('../lib/monthlyInvoice');
+const { resyncDraftInvoicesForOwner } = require('../lib/autoInvoice');
 const { makeCustomerMatcher } = require('../lib/customerMatch');
 const { buildAgreementPdf } = require('../lib/agreementPdf');
 const router = express.Router();
@@ -169,6 +170,12 @@ router.put('/:id', (req, res) => {
   }
   const updated = store.update('owners', req.params.id, updates);
   if (!updated) return res.status(404).json({ error: 'Owner not found' });
+  // A changed owner-level price shouldn't leave already-completed-but-still-draft
+  // jobs (across every property this owner has) stuck showing the old number — see
+  // lib/autoInvoice.js#resyncDraftInvoicesForOwner.
+  if (req.body.customPricing !== undefined) {
+    resyncDraftInvoicesForOwner(Number(req.params.id));
+  }
   res.json(withPropertyCount(updated));
 });
 

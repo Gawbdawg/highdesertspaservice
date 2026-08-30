@@ -2268,10 +2268,45 @@ function renderInvoiceTable() {
   }).join('') || '<tr><td colspan="6" class="empty-state">No invoices found.</td></tr>';
 }
 
+// Groups a combined invoice's individual jobs by property + service type, so a
+// month's worth of the same recurring visit repeated week after week reads as one
+// subtotal ("Weekly Maintenance × 4 — $400") instead of four near-identical rows.
+// Shown as a summary above the detailed per-job list below (which stays ungrouped,
+// since "Remove from invoice" needs to target one specific job).
+function groupLineItems(lineItems) {
+  const groups = [];
+  const byKey = new Map();
+  lineItems.forEach((li) => {
+    const key = `${li.customerName}||${li.serviceType}`;
+    let g = byKey.get(key);
+    if (!g) {
+      g = { customerName: li.customerName, serviceType: li.serviceType || 'Service', count: 0, total: 0 };
+      byKey.set(key, g);
+      groups.push(g);
+    }
+    g.count += 1;
+    g.total += Number(li.amount) || 0;
+  });
+  return groups;
+}
+
 window.viewInvoiceLineItems = (id) => {
   const i = state.invoices.find((x) => x.id === id);
   const canRemove = !i.isCombined || i.status === 'draft' || i.status === 'sent';
-  const rows = (i.lineItems || []).map((li) => `
+  const lineItems = i.lineItems || [];
+  const groups = groupLineItems(lineItems);
+  const spansMultipleProperties = new Set(lineItems.map((li) => li.customerName)).size > 1;
+  const summaryHtml = groups.length ? `
+    <div style="border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin-bottom:10px;">
+      ${groups.map((g) => `
+        <div style="display:flex; justify-content:space-between; font-size:13px; padding:2px 0;">
+          <span>${spansMultipleProperties ? g.customerName + ' — ' : ''}${g.serviceType}${g.count > 1 ? ` × ${g.count}` : ''}</span>
+          <strong>${money(g.total)}</strong>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+  const rows = lineItems.map((li) => `
     <div class="profile-history-item">
       <strong>${li.date} — ${li.customerName}</strong>
       <div class="meta">${li.serviceType} · ${money(li.amount)}</div>
@@ -2279,6 +2314,7 @@ window.viewInvoiceLineItems = (id) => {
     </div>
   `).join('') || '<div class="empty-state">No jobs on this invoice.</div>';
   openModal(`Jobs on invoice #${i.id}`, `
+    ${summaryHtml}
     <p class="portal-hint" style="margin:0 0 4px;">Removing a job here (e.g. a cancellation fee for a visit that ended up not billable) puts its own invoice back to draft on its own — it doesn't delete that charge, just pulls it out of this combined bill.</p>
     ${rows}
     <div class="modal-actions"><button class="btn" onclick="closeModal()">Close</button></div>

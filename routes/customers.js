@@ -4,6 +4,7 @@ const { hashPassword, sanitizeCustomer } = require('../lib/auth');
 const { geocodeAddress } = require('../lib/geocode');
 const { makeCustomerMatcher } = require('../lib/customerMatch');
 const { generateRecurringSeries } = require('../lib/scheduleFromFrequency');
+const { resyncDraftInvoicesForCustomer } = require('../lib/autoInvoice');
 const router = express.Router();
 
 // Creates a brand-new owner account and returns its id — used when an admin links
@@ -290,6 +291,11 @@ router.put('/:id', async (req, res) => {
 
   const updated = store.update('customers', req.params.id, updates);
   if (!updated) return res.status(404).json({ error: 'Customer not found' });
+  // A changed home-level price shouldn't leave already-completed-but-still-draft jobs
+  // stuck showing the old number — see lib/autoInvoice.js#resyncDraftInvoicesForCustomer.
+  if (updates.customPricing !== undefined) {
+    resyncDraftInvoicesForCustomer(Number(req.params.id));
+  }
   res.json(withOwnerName(updated));
 });
 
