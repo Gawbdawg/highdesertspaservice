@@ -697,11 +697,23 @@ function renderBookingGanttGrid() {
       </div>`;
     }).join('');
 
+    // A booking's endDate is the checkout date, and by iCal/stay convention it's
+    // exclusive — the guest's last occupied NIGHT is endDate minus one day; they leave
+    // that morning. Filling the checkout day's cell edge-to-edge made the bar look
+    // like the guest was there the whole day, which read as inaccurate — especially
+    // since a turnover cleaning is often scheduled that same morning. So the bar now
+    // stops partway through the checkout day's cell instead of filling it — but only
+    // when this row segment actually IS the real checkout (seg.isActualEnd); a segment
+    // that just wraps to next week because the stay continues past this row still
+    // fills its last visible cell fully, since the guest genuinely is there that whole
+    // day and beyond.
+    const CHECKOUT_DAY_FRACTION = 0.4;
     const barsHtml = segs.map((seg) => {
       const b = seg.booking;
       const label = b.notes ? b.notes : 'Booked';
       const left = (seg.startCol / 7) * 100;
-      const width = ((seg.endCol - seg.startCol + 1) / 7) * 100;
+      const endFraction = seg.isActualEnd ? CHECKOUT_DAY_FRACTION : 1;
+      const width = ((seg.endCol - seg.startCol) + endFraction) / 7 * 100;
       const top = barTopBase + seg.lane * laneHeight;
       const roundClass = `${seg.isActualStart ? 'round-start' : ''} ${seg.isActualEnd ? 'round-end' : ''}`;
       const manualClass = b.source === 'ical' ? '' : 'gantt-bar-manual';
@@ -998,6 +1010,9 @@ document.getElementById('saveIcalBtn').addEventListener('click', async () => {
       }
       if (result.conflictCount) {
         msg += ` ⚠ ${result.conflictCount} date${result.conflictCount === 1 ? '' : 's'} overlap between two calendars — check for a double-booking below.`;
+      }
+      if (result.cancelledConflictingCleanings) {
+        msg += ` ${result.cancelledConflictingCleanings} already-scheduled cleaning${result.cancelledConflictingCleanings === 1 ? ' was' : 's were'} cancelled because a guest turned out to still be there that day.`;
       }
       statusEl.textContent = msg;
       p.icalLastSyncedAt = new Date().toISOString();

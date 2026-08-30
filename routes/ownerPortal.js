@@ -2,7 +2,7 @@ const express = require('express');
 const store = require('../lib/store');
 const { requireOwnerAuth, hashPassword, checkPassword, sanitizeOwner } = require('../lib/auth');
 const { syncCustomerCalendar, guessLabel } = require('../lib/icalSync');
-const { maybeCreateCheckoutAppointment } = require('../lib/turnoverSchedule');
+const { maybeCreateCheckoutAppointment, cancelConflictingCheckoutAppointments } = require('../lib/turnoverSchedule');
 const { geocodeAddress } = require('../lib/geocode');
 const { previewFrequencyPricing, maybeCreateCancellationFeeInvoice } = require('../lib/autoInvoice');
 const { notifyAdminNewServiceRequest } = require('../lib/notifications');
@@ -649,6 +649,11 @@ router.post('/bookings', (req, res) => {
     source: 'manual',
   });
   maybeCreateCheckoutAppointment(Number(propertyId), endDate);
+  // This new booking might reveal that some OTHER already-scheduled turnover cleaning
+  // for this property now falls on a day it turns out a guest is still there (e.g. this
+  // manually-entered stay overlaps one already on the calendar) — see
+  // lib/turnoverSchedule.js#cancelConflictingCheckoutAppointments.
+  cancelConflictingCheckoutAppointments(Number(propertyId));
   res.status(201).json(booking);
 });
 
