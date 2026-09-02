@@ -7,7 +7,14 @@ const router = express.Router();
 
 function dayAppointments(date) {
   return store.getAll('appointments')
-    .filter((a) => a.date === date)
+    // A cancelled appointment (an admin/owner cancellation, or the turnover-conflict
+    // safety net auto-cancelling a checkout cleaning that turned out to land on a day
+    // a guest is actually still there — see lib/turnoverSchedule.js) should never show
+    // up as a job to actually do. Every other appointment listing in this app already
+    // excludes cancelled (tech portal, owner portal) — this was the one place that
+    // didn't, so a cancelled auto-scheduled cleaning could still appear on the Daily
+    // Schedule and in the technician's route text as if it were a real job.
+    .filter((a) => a.date === date && a.status !== 'cancelled')
     .sort((a, b) => a.startTime.localeCompare(b.startTime))
     .map((a) => {
       const customer = store.getById('customers', a.customerId);
