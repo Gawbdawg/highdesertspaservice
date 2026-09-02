@@ -6,6 +6,7 @@ const { invoiceDescription } = require('../lib/invoiceDescription');
 const waveSync = require('../lib/waveSync');
 const { ownerQualifiesForMonthly } = require('../lib/monthlyInvoice');
 const { attemptAutopay, resolveOwnerForInvoice } = require('../lib/autopay');
+const { resyncAllDraftInvoices } = require('../lib/autoInvoice');
 const stripe = require('../lib/stripeClient');
 const router = express.Router();
 
@@ -108,6 +109,15 @@ router.post('/', (req, res) => {
     notes: notes || '',
   });
   res.status(201).json(enrich(invoice));
+});
+
+// Manual "refresh" action for the Invoices tab — sweeps every draft invoice and
+// re-resolves its price against whatever's currently set at the home/owner/catalog
+// level (see lib/autoInvoice.js#resyncAllDraftInvoices). Sent/paid/bundled invoices
+// are untouched — this only ever corrects invoices that haven't gone out yet.
+router.post('/resync-all-prices', (req, res) => {
+  const updatedCount = resyncAllDraftInvoices();
+  res.json({ updatedCount });
 });
 
 router.put('/:id', (req, res) => {

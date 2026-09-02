@@ -2587,6 +2587,27 @@ document.getElementById('newInvoiceBtn').addEventListener('click', async () => {
   });
 });
 
+// One-time "catch up" sweep: recomputes every draft invoice's amount against
+// whatever price currently resolves for it (home custom price → owner custom
+// price → frequency tier → catalog default). The per-save resync that already
+// runs when a home/owner's custom price changes only covers invoices tied to
+// that one home or owner — this covers everything, including drafts left stale by
+// a catalog or frequency-tier price change with no single save to hang a resync
+// off of. Only draft invoices are touched; anything already sent/paid/bundled
+// is left alone.
+document.getElementById('resyncPricesBtn').addEventListener('click', async () => {
+  if (!confirm("Re-check every draft invoice against today's home/owner/catalog prices and update any that are stale?")) return;
+  try {
+    const result = await api('/api/invoices/resync-all-prices', { method: 'POST' });
+    alert(result.updatedCount
+      ? `Updated ${result.updatedCount} draft invoice${result.updatedCount === 1 ? '' : 's'} to current pricing.`
+      : 'Everything was already up to date — nothing to change.');
+    loadInvoices();
+  } catch (e) {
+    alert('Could not refresh prices: ' + e.message);
+  }
+});
+
 window.editInvoice = (id) => {
   const i = state.invoices.find((x) => x.id === id);
   openModal('Edit Invoice', invoiceForm(i));
