@@ -2498,23 +2498,74 @@ window.viewMonthlyPendingJobs = async (ownerId, ownerName) => {
     return;
   }
   jobs = jobs.filter((i) => i.isMonthlyDeferred);
-  // Cached so editMonthlyPendingJob can look a job up by id without a second
-  // round trip, and so it knows which owner's modal to reopen after saving.
+  // Cached so editMonthlyPendingJob/addMonthlyPendingCharge can look things up
+  // without a second round trip, and so they know which owner's modal to reopen
+  // after saving.
   state.monthlyPendingJobs = jobs;
   state.monthlyPendingOwner = { ownerId, ownerName };
-  // Needed for the Home dropdown inside the edit form (see customerOptions/invoiceForm).
+  // Needed for the Home dropdown inside the edit form and the add-charge form
+  // below (see customerOptions/invoiceForm).
   if (state.customers.length === 0) state.customers = await api('/api/customers');
+  const ownerCustomers = state.customers.filter((c) => c.ownerId === ownerId);
   const rows = jobs.map((i) => `
     <div class="profile-history-item">
       <strong>${i.issuedDate || ''} — ${i.customerName}</strong>
-      <div class="meta">${i.description || 'Service'} · ${money(i.amount)}</div>
+      <div class="meta">${i.notes || 'Service'} · ${money(i.amount)}</div>
       <div style="margin-top:6px;"><button class="btn small" onclick="editMonthlyPendingJob(${i.id})">Edit</button></div>
     </div>
   `).join('') || '<div class="empty-state">Nothing pending right now.</div>';
+  // A one-off charge that isn't tied to any scheduled appointment — restocking
+  // chemicals, a part, anything billed at a price the tech just tells the office
+  // rather than something priced from the service catalog. Creates a plain draft
+  // invoice for the chosen property at whatever amount is typed in, which lands in
+  // this same pending list (and the owner's next combined invoice) exactly like an
+  // auto-generated job would — see POST /api/invoices, unchanged.
+  const addChargeForm = `
+    <div class="profile-history-item" style="border-top:2px solid var(--border); margin-top:10px; padding-top:10px;">
+      <strong>Add a charge</strong>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; align-items:flex-end;">
+        <label style="flex:2; min-width:140px;">Home
+          <select id="addChargeCustomerId">${ownerCustomers.map((c) => `<option value="${c.id}">${c.name}</option>`).join('') || '<option value="">No properties</option>'}</select>
+        </label>
+        <label style="flex:3; min-width:160px;">Description
+          <input type="text" id="addChargeDesc" placeholder="e.g. Refilled chlorine tabs" />
+        </label>
+        <label style="flex:1; min-width:90px;">Amount ($)
+          <input type="number" step="0.01" min="0" id="addChargeAmount" />
+        </label>
+        <button class="btn small primary" id="addChargeBtn" ${ownerCustomers.length ? '' : 'disabled'}>Add</button>
+      </div>
+    </div>
+  `;
   openModal(`Pending jobs — ${ownerName}`, `
     ${rows}
+    ${addChargeForm}
     <div class="modal-actions"><button class="btn" onclick="closeModal()">Close</button></div>
   `);
+  const addBtn = document.getElementById('addChargeBtn');
+  if (addBtn) addBtn.addEventListener('click', () => addMonthlyPendingCharge(ownerId, ownerName));
+};
+
+// Adds a manual, un-scheduled charge (restocked chemicals, a part, anything not
+// tied to a completed appointment) straight onto one of this owner's properties as
+// a plain draft invoice — same shape as one auto-generated from a job, so it folds
+// into this owner's pending total and next combined invoice exactly the same way.
+window.addMonthlyPendingCharge = async (ownerId, ownerName) => {
+  const customerId = Number(document.getElementById('addChargeCustomerId').value);
+  const desc = document.getElementById('addChargeDesc').value.trim();
+  const amount = Number(document.getElementById('addChargeAmount').value);
+  if (!customerId) { alert('Choose which home this charge is for.'); return; }
+  if (!amount || amount <= 0) { alert('Enter an amount greater than $0.'); return; }
+  try {
+    await api('/api/invoices', {
+      method: 'POST',
+      body: JSON.stringify({ customerId, amount, notes: desc || 'Manual charge', status: 'draft' }),
+    });
+    await loadMonthlyPending();
+    await viewMonthlyPendingJobs(ownerId, ownerName);
+  } catch (e) {
+    alert('Could not add charge: ' + e.message);
+  }
 };
 
 // Lets the office fix a single pending job's amount/date/notes right from the
