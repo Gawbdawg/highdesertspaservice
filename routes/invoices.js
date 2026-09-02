@@ -80,7 +80,10 @@ function invoiceAutopayReady(inv) {
 router.get('/', (req, res) => {
   let invoices = store.getAll('invoices');
   if (req.query.status) invoices = invoices.filter((i) => i.status === req.query.status);
-  if (req.query.customerId) invoices = invoices.filter((i) => i.customerId === Number(req.query.customerId));
+  // Number(...) both sides — customerId is normally stored as a number, but an
+  // invoice edited before the PUT /:id fix below could have it saved as a string,
+  // and a strict === would silently drop it from these filters.
+  if (req.query.customerId) invoices = invoices.filter((i) => Number(i.customerId) === Number(req.query.customerId));
   // Used by the Monthly tab's drill-down to show exactly which jobs are sitting
   // unbilled for one owner across every one of their properties (a plain
   // customerId filter only covers a single property at a time).
@@ -88,7 +91,7 @@ router.get('/', (req, res) => {
     const ownerPropertyIds = new Set(
       store.getAll('customers').filter((c) => c.ownerId === Number(req.query.ownerId)).map((c) => c.id)
     );
-    invoices = invoices.filter((i) => i.customerId && ownerPropertyIds.has(i.customerId));
+    invoices = invoices.filter((i) => i.customerId && ownerPropertyIds.has(Number(i.customerId)));
   }
   invoices = invoices.sort((a, b) => (b.issuedDate || '').localeCompare(a.issuedDate || ''));
   res.json(invoices.map(enrich));
@@ -124,6 +127,15 @@ router.put('/:id', (req, res) => {
   const before = store.getById('invoices', req.params.id);
   const updates = { ...req.body };
   if (updates.amount !== undefined) updates.amount = Number(updates.amount);
+  // Without this, saving the edit form (whose <select> always yields a string) leaves
+  // customerId as e.g. "107" instead of 107. That still resolves fine anywhere using
+  // store.getById (it coerces), but GET /?ownerId=... matches against a Set of numeric
+  // customer ids with strict .has() — so a string id silently fails to match and the
+  // invoice vanishes from the Monthly tab's pending-jobs list even though it's still
+  // very much there (see routes/invoices.js's ownerId filter above).
+  if (updates.customerId !== undefined && updates.customerId !== null && updates.customerId !== '') {
+    updates.customerId = Number(updates.customerId);
+  }
   const updated = store.update('invoices', req.params.id, updates);
   if (!updated) return res.status(404).json({ error: 'Invoice not found' });
   // Push to Wave (if configured — see lib/waveSync.js) the moment this invoice is
