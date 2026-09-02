@@ -2238,10 +2238,13 @@ function renderInvoiceTable() {
   else if (filter) rows = rows.filter((i) => i.status === filter && !(filter === 'sent' && isOverdue(i)));
 
   const tbody = document.querySelector('#invoiceTable tbody');
-  tbody.innerHTML = rows.map((i) => {
-    const overdue = isOverdue(i);
-    const bundled = i.status === 'bundled';
-    return `
+  tbody.innerHTML = renderInvoiceRowsGroupedByOwner(rows) || '<tr><td colspan="6" class="empty-state">No invoices found.</td></tr>';
+}
+
+function invoiceRowHtml(i) {
+  const overdue = isOverdue(i);
+  const bundled = i.status === 'bundled';
+  return `
     <tr class="${overdue ? 'row-overdue' : ''}">
       <td>${i.customerName}</td>
       <td>${money(i.amount)}</td>
@@ -2265,7 +2268,37 @@ function renderInvoiceTable() {
       </td>
     </tr>
   `;
-  }).join('') || '<tr><td colspan="6" class="empty-state">No invoices found.</td></tr>';
+}
+
+// Sections the invoice table by owner (a property manager/vacation owner with
+// several homes) so their invoices read together instead of interleaved by date
+// across unrelated customers. Invoices with no owner (standalone residential
+// customers, billed directly under their own name) fall into one "No owner"
+// group at the end rather than each getting their own one-row section — see
+// routes/invoices.js#enrich for where ownerName comes from. Within a group,
+// the existing date-descending order from the API is preserved.
+function renderInvoiceRowsGroupedByOwner(rows) {
+  if (!rows.length) return '';
+  const groups = new Map(); // ownerName (or null) -> rows[]
+  rows.forEach((i) => {
+    const key = i.ownerName || null;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(i);
+  });
+  const ownerNames = [...groups.keys()].filter((k) => k !== null).sort((a, b) => a.localeCompare(b));
+  const orderedKeys = groups.has(null) ? [...ownerNames, null] : ownerNames;
+
+  return orderedKeys.map((key) => {
+    const groupRows = groups.get(key);
+    const total = groupRows.reduce((sum, i) => sum + Number(i.amount || 0), 0);
+    const label = key || 'No owner (individual customers)';
+    return `
+      <tr class="invoice-group-row">
+        <td colspan="6"><span class="invoice-group-name">${label}</span> <span class="invoice-group-meta">${groupRows.length} invoice${groupRows.length === 1 ? '' : 's'} · ${money(total)}</span></td>
+      </tr>
+      ${groupRows.map(invoiceRowHtml).join('')}
+    `;
+  }).join('');
 }
 
 // Groups a combined invoice's individual jobs by property + service type, so a
@@ -2464,16 +2497,46 @@ window.viewMonthlyPendingJobs = async (ownerId, ownerName) => {
     return;
   }
   jobs = jobs.filter((i) => i.isMonthlyDeferred);
+  // Cached so editMonthlyPendingJob can look a job up by id without a second
+  // round trip, and so it knows which owner's modal to reopen after saving.
+  state.monthlyPendingJobs = jobs;
+  state.monthlyPendingOwner = { ownerId, ownerName };
+  // Needed for the Home dropdown inside the edit form (see customerOptions/invoiceForm).
+  if (state.customers.length === 0) state.customers = await api('/api/customers');
   const rows = jobs.map((i) => `
     <div class="profile-history-item">
       <strong>${i.issuedDate || ''} — ${i.customerName}</strong>
       <div class="meta">${i.description || 'Service'} · ${money(i.amount)}</div>
+      <div style="margin-top:6px;"><button class="btn small" onclick="editMonthlyPendingJob(${i.id})">Edit</button></div>
     </div>
   `).join('') || '<div class="empty-state">Nothing pending right now.</div>';
   openModal(`Pending jobs — ${ownerName}`, `
     ${rows}
     <div class="modal-actions"><button class="btn" onclick="closeModal()">Close</button></div>
   `);
+};
+
+// Lets the office fix a single pending job's amount/date/notes right from the
+// Monthly tab's "View jobs" drill-down, instead of having to hunt it down on the
+// classic Invoices tab first (these per-job drafts are hidden there — see
+// routes/invoices.js#enrich's isMonthlyDeferred). Reopens the pending-jobs modal
+// afterward, refreshed, and refreshes the Monthly Pending table's totals in the
+// background so the owner's pending total reflects the edit immediately.
+window.editMonthlyPendingJob = (id) => {
+  const i = (state.monthlyPendingJobs || []).find((x) => x.id === id);
+  if (!i) return;
+  openModal('Edit Invoice', invoiceForm(i));
+  document.getElementById('saveInvoiceBtn').addEventListener('click', async () => {
+    try {
+      await api('/api/invoices/' + id, { method: 'PUT', body: JSON.stringify(readInvoiceForm()) });
+      closeModal();
+      await loadMonthlyPending();
+      const owner = state.monthlyPendingOwner;
+      if (owner) await viewMonthlyPendingJobs(owner.ownerId, owner.ownerName);
+    } catch (e) {
+      alert('Could not save invoice: ' + e.message);
+    }
+  });
 };
 
 function invoiceForm(i = {}) {

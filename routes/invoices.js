@@ -31,6 +31,9 @@ function enrich(inv) {
     return {
       ...inv,
       customerName: `${owner ? owner.name : 'Unknown owner'} — ${propertyCount} propert${propertyCount === 1 ? 'y' : 'ies'}`,
+      // Used by the admin Invoices table to section invoices by owner instead of
+      // listing every property flat — see public/app.js#renderInvoiceTable.
+      ownerName: owner ? owner.name : null,
       isCombined: true,
       // A combined invoice IS the thing that needs sending/collecting — never deferred.
       isMonthlyDeferred: false,
@@ -38,6 +41,7 @@ function enrich(inv) {
     };
   }
   const customer = store.getById('customers', inv.customerId);
+  const owner = customer && customer.ownerId ? store.getById('owners', customer.ownerId) : null;
   // A per-job draft invoice for a monthly-billed (or vacation-rental) owner isn't
   // something that needs office action the moment a tech completes the job — it's
   // meant to just sit and accumulate until "Generate monthly invoice" rolls it into
@@ -45,14 +49,14 @@ function enrich(inv) {
   // in one place, so both the Money queue and the classic Invoices table can hide
   // these without each re-implementing the same owner-qualifies check.
   let isMonthlyDeferred = false;
-  if (inv.status === 'draft' && !hasLineItems && customer && customer.ownerId) {
-    const owner = store.getById('owners', customer.ownerId);
+  if (inv.status === 'draft' && !hasLineItems && owner) {
     const properties = store.getAll('customers');
     isMonthlyDeferred = ownerQualifiesForMonthly(owner, properties);
   }
   return {
     ...inv,
     customerName: customer ? customer.name : 'Unknown customer',
+    ownerName: owner ? owner.name : null,
     isCombined: hasLineItems,
     isMonthlyDeferred,
     autopayReady: invoiceAutopayReady(inv),
