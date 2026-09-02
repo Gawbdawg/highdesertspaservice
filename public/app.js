@@ -2416,6 +2416,7 @@ window.viewInvoice = (id) => {
 // and a link to view/pay it online. Replaces the old copy-the-link-and-text-it-
 // yourself workflow entirely.
 window.emailInvoice = async (id) => {
+  if (!confirm('Send this invoice to the customer now?')) return;
   try {
     const result = await api(`/api/invoices/${id}/email`, { method: 'POST' });
     alert(result.dryRun
