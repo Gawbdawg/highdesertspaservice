@@ -2230,12 +2230,22 @@ window.retryWaveSync = async (id) => {
 
 function renderInvoiceTable() {
   const filter = document.getElementById('invoiceStatusFilter').value;
+  const search = document.getElementById('invoiceOwnerSearch').value.trim().toLowerCase();
   // Monthly-billed/vacation-rental owners' per-job drafts belong on the Monthly tab,
   // not here — they're not something that needs action the moment a job is done. See
   // routes/invoices.js#enrich's isMonthlyDeferred.
   let rows = state.invoices.filter((i) => !i.isMonthlyDeferred);
   if (filter === 'overdue') rows = rows.filter(isOverdue);
   else if (filter) rows = rows.filter((i) => i.status === filter && !(filter === 'sent' && isOverdue(i)));
+  // Matches either the owner's name or, for a standalone customer with no owner,
+  // the home/customer name shown in place of one — same fields the table itself
+  // groups and displays by (see renderInvoiceRowsGroupedByOwner).
+  if (search) {
+    rows = rows.filter((i) => (
+      (i.ownerName || '').toLowerCase().includes(search)
+      || (i.customerName || '').toLowerCase().includes(search)
+    ));
+  }
 
   const tbody = document.querySelector('#invoiceTable tbody');
   tbody.innerHTML = renderInvoiceRowsGroupedByOwner(rows) || '<tr><td colspan="6" class="empty-state">No invoices found.</td></tr>';
@@ -2451,6 +2461,7 @@ async function loadInvoices() {
 }
 
 document.getElementById('invoiceStatusFilter').addEventListener('change', renderInvoiceTable);
+document.getElementById('invoiceOwnerSearch').addEventListener('input', renderInvoiceTable);
 
 // Monthly tab — owners on Monthly billing, or with at least one vacation-rental
 // property, whose completed jobs accumulate toward one combined bill instead of
