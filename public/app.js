@@ -2511,7 +2511,10 @@ window.viewMonthlyPendingJobs = async (ownerId, ownerName) => {
     <div class="profile-history-item">
       <strong>${i.issuedDate || ''} — ${i.customerName}</strong>
       <div class="meta">${i.notes || 'Service'} · ${money(i.amount)}</div>
-      <div style="margin-top:6px;"><button class="btn small" onclick="editMonthlyPendingJob(${i.id})">Edit</button></div>
+      <div style="margin-top:6px;">
+        <button class="btn small" onclick="editMonthlyPendingJob(${i.id})">Edit</button>
+        <button class="btn small danger" onclick="deleteMonthlyPendingJob(${i.id})">Delete</button>
+      </div>
     </div>
   `).join('') || '<div class="empty-state">Nothing pending right now.</div>';
   // A one-off charge that isn't tied to any scheduled appointment — restocking
@@ -2589,6 +2592,23 @@ window.editMonthlyPendingJob = (id) => {
       alert('Could not save invoice: ' + e.message);
     }
   });
+};
+
+// Removes a pending job's draft invoice entirely — for a service that was scheduled
+// or billed by mistake and shouldn't count toward the owner's next combined invoice
+// at all (as opposed to Edit, which corrects the amount/notes but keeps it). Reopens
+// the pending-jobs modal afterward, refreshed, and refreshes the Monthly Pending
+// table's totals in the background, same as editMonthlyPendingJob above.
+window.deleteMonthlyPendingJob = async (id) => {
+  if (!confirm('Delete this pending charge? It will not be billed to the owner.')) return;
+  try {
+    await api('/api/invoices/' + id, { method: 'DELETE' });
+    await loadMonthlyPending();
+    const owner = state.monthlyPendingOwner;
+    if (owner) await viewMonthlyPendingJobs(owner.ownerId, owner.ownerName);
+  } catch (e) {
+    alert('Could not delete this charge: ' + e.message);
+  }
 };
 
 function invoiceForm(i = {}) {
