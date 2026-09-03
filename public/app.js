@@ -2249,6 +2249,20 @@ function renderInvoiceTable() {
 
   const tbody = document.querySelector('#invoiceTable tbody');
   tbody.innerHTML = renderInvoiceRowsGroupedByOwner(rows) || '<tr><td colspan="6" class="empty-state">No invoices found.</td></tr>';
+
+  // Keep an open party-breakdown modal in sync with whatever just changed the
+  // underlying data (an edit, a send, a delete, a filter/search change) instead of
+  // leaving it showing stale rows — or close it if that party's invoices collapsed
+  // down to 0-1 left, since there's nothing left to break down.
+  if (state.openInvoicePartyKey) {
+    const group = (state.invoicePartyGroups || new Map()).get(state.openInvoicePartyKey);
+    if (group && group.rows.length > 1) {
+      viewPartyInvoices(state.openInvoicePartyKey);
+    } else {
+      state.openInvoicePartyKey = null;
+      closeModal();
+    }
+  }
 }
 
 function invoiceRowHtml(i) {
@@ -2258,7 +2272,7 @@ function invoiceRowHtml(i) {
     <tr class="${overdue ? 'row-overdue' : ''}">
       <td>${i.customerName}</td>
       <td>${money(i.amount)}</td>
-      <td>${i.issuedDate || ''}</td>
+      <td>${i.appointmentDate || i.issuedDate || ''}</td>
       <td>${i.dueDate || ''}</td>
       <td>${overdue ? '<span class="badge cancelled">Overdue</span>' : `<span class="badge ${i.status}">${i.status}</span>`}${i.stripeSessionId ? ' <span class="badge completed">Paid online</span>' : ''}${waveBadge(i)}</td>
       <td>
@@ -2280,36 +2294,101 @@ function invoiceRowHtml(i) {
   `;
 }
 
-// Sections the invoice table by owner (a property manager/vacation owner with
-// several homes) so their invoices read together instead of interleaved by date
-// across unrelated customers. Invoices with no owner (standalone residential
-// customers, billed directly under their own name) fall into one "No owner"
-// group at the end rather than each getting their own one-row section — see
-// routes/invoices.js#enrich for where ownerName comes from. Within a group,
-// the existing date-descending order from the API is preserved.
-function renderInvoiceRowsGroupedByOwner(rows) {
-  if (!rows.length) return '';
-  const groups = new Map(); // ownerName (or null) -> rows[]
-  rows.forEach((i) => {
-    const key = i.ownerName || null;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(i);
-  });
-  const ownerNames = [...groups.keys()].filter((k) => k !== null).sort((a, b) => a.localeCompare(b));
-  const orderedKeys = groups.has(null) ? [...ownerNames, null] : ownerNames;
+// Groups the invoice table by "billing party" — an owner (across every property
+// they have) if one applies, otherwise the standalone customer itself — so someone
+// with several open invoices reads as one line (name, how many services, a Send
+// action) instead of a wall of near-identical rows. Click the name to drill into the
+// actual per-invoice breakdown (see viewPartyInvoices below). A party with only one
+// invoice has nothing to collapse, so it's shown exactly as a normal row, unchanged.
+// Owner parties are listed first (alphabetically), then standalone customers
+// (alphabetically) — same "managed by an owner" vs "individual customer" split the
+// table always had, just no longer dumping every standalone customer into one shared
+// "No owner" bucket (each is its own party now, so THEIR multiple invoices collapse
+// too, not just an owner's).
+function partyKeyFor(i) {
+  return i.ownerName ? `owner:${i.ownerName}` : `customer:${i.customerId}`;
+}
 
-  return orderedKeys.map((key) => {
-    const groupRows = groups.get(key);
+function renderInvoiceRowsGroupedByOwner(rows) {
+  if (!rows.length) { state.invoicePartyGroups = new Map(); return ''; }
+  const groups = new Map(); // partyKey -> { label, isOwner, rows: [] }
+  rows.forEach((i) => {
+    const key = partyKeyFor(i);
+    if (!groups.has(key)) groups.set(key, { label: i.ownerName || i.customerName, isOwner: !!i.ownerName, rows: [] });
+    groups.get(key).rows.push(i);
+  });
+  // Cached so viewPartyInvoices/sendAllInvoicesForParty can look a group up by key
+  // without a second round trip, and so a currently-open breakdown modal can be
+  // refreshed in place after an action changes the underlying data (see loadInvoices).
+  state.invoicePartyGroups = groups;
+
+  const entries = [...groups.entries()];
+  const ownerEntries = entries.filter(([, g]) => g.isOwner).sort((a, b) => a[1].label.localeCompare(b[1].label));
+  const customerEntries = entries.filter(([, g]) => !g.isOwner).sort((a, b) => a[1].label.localeCompare(b[1].label));
+
+  return [...ownerEntries, ...customerEntries].map(([key, group]) => {
+    const groupRows = group.rows;
+    if (groupRows.length === 1) return invoiceRowHtml(groupRows[0]);
+
     const total = groupRows.reduce((sum, i) => sum + Number(i.amount || 0), 0);
-    const label = key || 'No owner (individual customers)';
+    const needsSending = groupRows.filter((i) => i.status === 'draft').length;
+    const safeKey = key.replace(/'/g, "\\'");
     return `
       <tr class="invoice-group-row">
-        <td colspan="6"><span class="invoice-group-name">${label}</span> <span class="invoice-group-meta">${groupRows.length} invoice${groupRows.length === 1 ? '' : 's'} · ${money(total)}</span></td>
+        <td colspan="6">
+          <span class="invoice-group-name clickable" onclick="viewPartyInvoices('${safeKey}')">${group.label}</span>
+          <span class="invoice-group-meta">${groupRows.length} service${groupRows.length === 1 ? '' : 's'} · ${money(total)}</span>
+          ${needsSending ? `<button class="btn small invoice-group-send" onclick="sendAllInvoicesForParty('${safeKey}')">Send invoice${needsSending === 1 ? '' : 's'} (${needsSending})</button>` : ''}
+        </td>
       </tr>
-      ${groupRows.map(invoiceRowHtml).join('')}
     `;
   }).join('');
 }
+
+// Drill-down modal for one billing party's full invoice breakdown — reuses
+// invoiceRowHtml as-is so every action (View, Email/Process payment, Edit, Delete,
+// View jobs for a combined invoice) works exactly the same here as it did when these
+// rows were shown inline. Tracked in state.openInvoicePartyKey so loadInvoices can
+// refresh this modal's contents in place after an action (or close it if the group
+// collapses to 0-1 invoices left) instead of leaving it showing stale data.
+window.viewPartyInvoices = (key) => {
+  const group = (state.invoicePartyGroups || new Map()).get(key);
+  if (!group) { state.openInvoicePartyKey = null; return; }
+  state.openInvoicePartyKey = key;
+  openModal(`Invoices — ${group.label}`, `
+    <table class="data-table">
+      <thead><tr><th>Home</th><th>Amount</th><th>Date</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>${group.rows.map(invoiceRowHtml).join('')}</tbody>
+    </table>
+    <div class="modal-actions"><button class="btn" onclick="state.openInvoicePartyKey = null; closeModal();">Close</button></div>
+  `);
+};
+
+// Sends every not-yet-sent invoice for one billing party in one click, instead of
+// hunting down and clicking "Email invoice" on each one individually. Only ever
+// touches status:'draft' invoices via the exact same one-at-a-time email endpoint
+// "Email invoice" already uses — an autopay-ready draft is deliberately left alone
+// here (charging a card is a one-at-a-time decision, not something to batch without
+// individually reviewing each amount — see routes/invoices.js#invoiceAutopayReady).
+window.sendAllInvoicesForParty = async (key) => {
+  const group = (state.invoicePartyGroups || new Map()).get(key);
+  if (!group) return;
+  const toSend = group.rows.filter((i) => i.status === 'draft');
+  if (!toSend.length) return;
+  if (!confirm(`Send ${toSend.length} invoice${toSend.length === 1 ? '' : 's'} to ${group.label} now?`)) return;
+  let sent = 0;
+  let failed = 0;
+  for (const inv of toSend) {
+    try {
+      await api(`/api/invoices/${inv.id}/email`, { method: 'POST' });
+      sent += 1;
+    } catch (e) {
+      failed += 1;
+    }
+  }
+  alert(`Sent ${sent} invoice${sent === 1 ? '' : 's'}.${failed ? ` ${failed} failed — check them individually.` : ''}`);
+  await loadInvoices();
+};
 
 // Groups a combined invoice's individual jobs by property + service type, so a
 // month's worth of the same recurring visit repeated week after week reads as one
@@ -2520,7 +2599,7 @@ window.viewMonthlyPendingJobs = async (ownerId, ownerName) => {
   const ownerCustomers = state.customers.filter((c) => c.ownerId === ownerId);
   const rows = jobs.map((i) => `
     <div class="profile-history-item">
-      <strong>${i.issuedDate || ''} — ${i.customerName}</strong>
+      <strong>${i.appointmentDate || i.issuedDate || ''} — ${i.customerName}</strong>
       <div class="meta">${i.notes || 'Service'} · ${money(i.amount)}</div>
       <div style="margin-top:6px;">
         <button class="btn small" onclick="editMonthlyPendingJob(${i.id})">Edit</button>
@@ -2623,12 +2702,20 @@ window.deleteMonthlyPendingJob = async (id) => {
 };
 
 function invoiceForm(i = {}) {
+  // A per-job invoice linked to a real appointment (i.appointmentId) shows and edits
+  // that appointment's actual date here, not just this billing record's own
+  // issuedDate — otherwise "fixing the date" looks like it worked but the real
+  // scheduled/completed job (what's on the Daily Schedule) never moves. See
+  // routes/invoices.js#enrich (appointmentDate) and PUT /:id (which pushes this
+  // field's edit back onto the linked appointment).
+  const isServiceDate = !!i.appointmentId;
+  const dateValue = isServiceDate ? (i.appointmentDate || i.issuedDate || todayStr()) : (i.issuedDate || todayStr());
   return `
     <label>Home
       <select id="f_icustomerId">${customerOptions(i.customerId)}</select>
     </label>
     <label>Amount ($)<input type="number" step="0.01" id="f_amount" value="${i.amount || ''}" /></label>
-    <label>Issued date<input type="date" id="f_issuedDate" value="${i.issuedDate || todayStr()}" /></label>
+    <label>${isServiceDate ? 'Service date <span style="font-weight:400; color:#7a8f97;">(this also moves the scheduled/completed job)</span>' : 'Issued date'}<input type="date" id="f_issuedDate" value="${dateValue}" /></label>
     <label>Due date<input type="date" id="f_dueDate" value="${i.dueDate || ''}" /></label>
     <label>Status
       <select id="f_istatus">

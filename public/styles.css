@@ -169,7 +169,10 @@ textarea { width: 100%; resize: vertical; }
   background: var(--bg); border-top: 1px solid var(--border); padding: 8px 10px;
 }
 .invoice-group-name { font-weight: 700; color: var(--text); }
+.invoice-group-name.clickable { cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.invoice-group-name.clickable:hover { color: var(--accent, #2b6f7a); }
 .invoice-group-meta { color: var(--text-muted); font-size: 12px; margin-left: 8px; }
+.data-table tr.invoice-group-row .invoice-group-send { float: right; }
 
 .tech-group { margin-bottom: 18px; }
 .tech-group h3 { margin: 0 0 8px; font-size: 15px; color: #33505c; }
