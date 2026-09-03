@@ -11,6 +11,7 @@ const store = require('../lib/store');
 const stripe = require('../lib/stripeClient');
 const waveSync = require('../lib/waveSync');
 const { catchUpOwnerInvoices } = require('../lib/autopay');
+const { sendPaymentReceipt } = require('../lib/receipt');
 
 // Once an owner completes the hosted Checkout "save a card" page, this looks up the
 // SetupIntent Stripe just finished (which the webhook payload only gives us the id
@@ -80,18 +81,19 @@ async function handleAutopaySetupCompleted(session) {
   }
 }
 
-function handleInvoicePaymentCompleted(session) {
+async function handleInvoicePaymentCompleted(session) {
   const invoiceId = session.client_reference_id || (session.metadata && session.metadata.invoiceId);
   if (invoiceId) {
     const invoice = store.getById('invoices', invoiceId);
     if (invoice && invoice.status !== 'paid') {
-      store.update('invoices', invoiceId, {
+      const updated = store.update('invoices', invoiceId, {
         status: 'paid',
         stripeSessionId: session.id,
         paidAt: new Date().toISOString(),
       });
       console.log(`Invoice #${invoiceId} marked paid via Stripe (session ${session.id}).`);
       waveSync.recordWavePayment(invoiceId).catch(() => {});
+      if (updated) await sendPaymentReceipt(updated);
     }
   } else {
     console.warn('Stripe checkout.session.completed had no invoice reference — ignoring.');
@@ -120,7 +122,7 @@ module.exports = async function stripeWebhookHandler(req, res) {
       if (session.mode === 'setup') {
         await handleAutopaySetupCompleted(session);
       } else {
-        handleInvoicePaymentCompleted(session);
+        await handleInvoicePaymentCompleted(session);
       }
     }
   } catch (err) {

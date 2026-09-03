@@ -7,6 +7,7 @@ const waveSync = require('../lib/waveSync');
 const { ownerQualifiesForMonthly } = require('../lib/monthlyInvoice');
 const { attemptAutopay, resolveOwnerForInvoice } = require('../lib/autopay');
 const { resyncAllDraftInvoices } = require('../lib/autoInvoice');
+const { sendPaymentReceipt } = require('../lib/receipt');
 const stripe = require('../lib/stripeClient');
 const router = express.Router();
 
@@ -178,6 +179,9 @@ router.put('/:id', (req, res) => {
   const before = store.getById('invoices', req.params.id);
   const updates = { ...req.body };
   if (updates.amount !== undefined) updates.amount = Number(updates.amount);
+  if (updates.status === 'paid' && !updates.paidAt && (!before || before.status !== 'paid')) {
+    updates.paidAt = new Date().toISOString();
+  }
   // Without this, saving the edit form (whose <select> always yields a string) leaves
   // customerId as e.g. "107" instead of 107. That still resolves fine anywhere using
   // store.getById (it coerces), but GET /?ownerId=... matches against a Set of numeric
@@ -197,6 +201,7 @@ router.put('/:id', (req, res) => {
   }
   if (before && before.status !== 'paid' && updated.status === 'paid') {
     waveSync.recordWavePayment(updated.id).catch(() => {});
+    sendPaymentReceipt(updated).catch(() => {});
   }
   res.json(enrich(updated));
 });
