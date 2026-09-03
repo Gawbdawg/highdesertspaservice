@@ -2691,6 +2691,25 @@ document.getElementById('resyncPricesBtn').addEventListener('click', async () =>
   }
 });
 
+// One-time cleanup: renames any existing appointment/invoice still carrying the old
+// "General service" or "Turnover cleaning" fallback label (from before this app
+// switched to defaulting new ones to "Hot Tub Service") so old and new jobs read the
+// same way everywhere — the Daily Schedule, invoices, and combined/monthly invoice
+// line items.
+document.getElementById('relabelServicesBtn').addEventListener('click', async () => {
+  if (!confirm('Rename every "General service" / "Turnover cleaning" label (on existing appointments and invoices) to "Hot Tub Service"?')) return;
+  try {
+    const result = await api('/api/invoices/relabel-default-services', { method: 'POST' });
+    alert(
+      `Updated ${result.appointmentsUpdated} appointment${result.appointmentsUpdated === 1 ? '' : 's'} `
+      + `and ${result.invoicesUpdated} invoice${result.invoicesUpdated === 1 ? '' : 's'}.`
+    );
+    loadInvoices();
+  } catch (e) {
+    alert('Could not rename old labels: ' + e.message);
+  }
+});
+
 window.editInvoice = (id) => {
   const i = state.invoices.find((x) => x.id === id);
   openModal('Edit Invoice', invoiceForm(i));

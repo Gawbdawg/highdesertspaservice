@@ -123,6 +123,57 @@ router.post('/resync-all-prices', (req, res) => {
   res.json({ updatedCount });
 });
 
+// One-time relabel: older appointments/invoices created before the "Hot Tub Service"
+// default was introduced still say "General service" or "Turnover cleaning" (the
+// old fallback labels — see routes/appointments.js, lib/scheduleFromFrequency.js,
+// lib/turnoverSchedule.js). New appointments already get the new label; this sweeps
+// existing data so old jobs and their invoices read the same way. Updates the
+// appointment itself, an invoice's freeform notes text (which has the old label
+// baked into a sentence like "Auto-generated from completed appointment (General
+// service, home price)."), and — for an already-generated combined/monthly invoice —
+// each bundled line item's own serviceType, which was snapshotted at bundle time and
+// won't pick up a fix to the source appointment on its own.
+const OLD_DEFAULT_SERVICE_LABELS = ['General service', 'Turnover cleaning'];
+const NEW_DEFAULT_SERVICE_LABEL = 'Hot Tub Service';
+
+router.post('/relabel-default-services', (req, res) => {
+  let appointmentsUpdated = 0;
+  let invoicesUpdated = 0;
+
+  store.getAll('appointments').forEach((a) => {
+    if (OLD_DEFAULT_SERVICE_LABELS.includes(a.serviceType)) {
+      store.update('appointments', a.id, { serviceType: NEW_DEFAULT_SERVICE_LABEL });
+      appointmentsUpdated += 1;
+    }
+  });
+
+  store.getAll('invoices').forEach((inv) => {
+    let changed = false;
+    let notes = inv.notes;
+    if (notes) {
+      OLD_DEFAULT_SERVICE_LABELS.forEach((label) => {
+        if (notes.includes(label)) {
+          notes = notes.split(label).join(NEW_DEFAULT_SERVICE_LABEL);
+          changed = true;
+        }
+      });
+    }
+    let lineItems = inv.lineItems;
+    if (Array.isArray(lineItems) && lineItems.some((li) => OLD_DEFAULT_SERVICE_LABELS.includes(li.serviceType))) {
+      lineItems = lineItems.map((li) => (
+        OLD_DEFAULT_SERVICE_LABELS.includes(li.serviceType) ? { ...li, serviceType: NEW_DEFAULT_SERVICE_LABEL } : li
+      ));
+      changed = true;
+    }
+    if (changed) {
+      store.update('invoices', inv.id, { notes, lineItems });
+      invoicesUpdated += 1;
+    }
+  });
+
+  res.json({ appointmentsUpdated, invoicesUpdated });
+});
+
 router.put('/:id', (req, res) => {
   const before = store.getById('invoices', req.params.id);
   const updates = { ...req.body };
