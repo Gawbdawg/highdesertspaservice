@@ -588,6 +588,10 @@
               <button class="btn" id="dedupeAppointmentsBtn">Remove duplicate appointments</button>
             </div>
             <div style="border-top:1px solid var(--border); padding-top:12px; margin-top:4px;">
+              <div class="portal-sub" style="margin:0 0 8px;">One-time fix for auto-scheduled turnover cleanings created before moving a visit reliably stuck — tags older ones with their checkout date so moving them from here on doesn't get quietly undone by the next calendar sync. Safe to run any time; does nothing to visits already tagged.</div>
+              <button class="btn" id="backfillCheckoutDatesBtn">Fix older auto-scheduled visits</button>
+            </div>
+            <div style="border-top:1px solid var(--border); padding-top:12px; margin-top:4px;">
               <div class="portal-sub" style="margin:0 0 8px;">Paste a contact list to fill in phone numbers/emails for existing homes — only fills in blanks, never overwrites anything already on file.</div>
               <button class="btn" id="bulkContactBtn">Update home contact info</button>
             </div>

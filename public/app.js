@@ -3797,6 +3797,21 @@ document.getElementById('dedupeAppointmentsBtn').addEventListener('click', async
   }
 });
 
+document.getElementById('backfillCheckoutDatesBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('backfillCheckoutDatesBtn');
+  btn.disabled = true;
+  try {
+    const result = await api('/api/appointments/backfill-checkout-dates', { method: 'POST' });
+    alert(result.updated > 0
+      ? `Tagged ${result.updated} older auto-scheduled visit(s) — moving them is now safe from the next calendar sync.`
+      : 'Everything was already tagged — nothing to fix.');
+  } catch (e) {
+    alert('Could not run this: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 document.getElementById('saveNotificationEmailBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('notificationEmailStatus');
   const btn = document.getElementById('saveNotificationEmailBtn');

@@ -608,7 +608,13 @@ router.post('/appointments/:id/move', (req, res) => {
   const hoursUntilVisit = (visitDateTime.getTime() - Date.now()) / (1000 * 60 * 60);
   const withinCancellationWindow = hoursUntilVisit < 24;
 
-  const updated = store.update('appointments', req.params.id, { date });
+  // See routes/appointments.js's PUT /:id for why this backfill exists — an
+  // appointment auto-scheduled before the checkoutDate field existed has nothing
+  // stopping the next iCal resync from recreating a duplicate right back on the date
+  // it's about to be moved away from, unless this freezes that date in now.
+  const moveUpdates = { date };
+  if (!appt.checkoutDate) moveUpdates.checkoutDate = appt.date;
+  const updated = store.update('appointments', req.params.id, moveUpdates);
   const feeInvoice = withinCancellationWindow
     ? maybeCreateCancellationFeeInvoice(
         updated,

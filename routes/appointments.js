@@ -89,6 +89,20 @@ router.put('/:id', (req, res) => {
   if (updates.customerId) updates.customerId = Number(updates.customerId);
   if (updates.technicianId) updates.technicianId = Number(updates.technicianId);
   if (updates.serviceId !== undefined) updates.serviceId = updates.serviceId ? Number(updates.serviceId) : null;
+  // Appointments auto-scheduled BEFORE the checkoutDate field existed (see
+  // lib/turnoverSchedule.js#maybeCreateCheckoutAppointment) never got tagged with it —
+  // so moving one of those to a new date used to look, to the next iCal resync, exactly
+  // like that checkout was never handled, and a duplicate got created right back on the
+  // original day. Lazily backfilling checkoutDate here, at the moment of the FIRST
+  // move, closes that gap for all pre-existing data without needing a one-time
+  // migration: freeze in the date this appointment is being moved away FROM as its
+  // checkoutDate, so a resync still recognizes that day as already covered. Harmless
+  // to set on an appointment that was never tied to a booking checkout at all — it
+  // just means a real checkout that happens to land on the same day won't get a
+  // redundant second cleaning either.
+  if (before && updates.date !== undefined && updates.date !== before.date && !before.checkoutDate) {
+    updates.checkoutDate = before.date;
+  }
   const updated = store.update('appointments', req.params.id, updates);
   if (!updated) return res.status(404).json({ error: 'Appointment not found' });
   syncInvoiceForCompletedAppointment(updated);
@@ -328,6 +342,17 @@ router.post('/:id/send-review-request', async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+router.post('/backfill-checkout-dates', (req, res) => {
+  let updated = 0;
+  store.getAll('appointments').forEach((a) => {
+    if (a.notes === 'Auto-scheduled: guest checkout day.' && !a.checkoutDate) {
+      store.update('appointments', a.id, { checkoutDate: a.date });
+      updated += 1;
+    }
+  });
+  res.json({ updated });
 });
 
 module.exports = router;
