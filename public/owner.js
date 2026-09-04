@@ -583,6 +583,8 @@ window.removeIcalRow = (rowId) => {
 
 document.getElementById('addIcalRowBtn').addEventListener('click', () => addIcalRow('', ''));
 
+let editingBookingId = null;
+
 async function loadBookings() {
   const bookings = await api('/api/owner/bookings?propertyId=' + selectedPropertyId);
   currentBookings = bookings;
@@ -592,7 +594,23 @@ async function loadBookings() {
     el.innerHTML = '<div class="empty-state">No guest dates added yet.</div>';
     return;
   }
-  el.innerHTML = bookings.map((b) => `
+  el.innerHTML = bookings.map((b) => {
+    if (b.id === editingBookingId) {
+      return `
+        <div class="owner-list-item" id="booking-row-${b.id}">
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <label>Start <input type="date" id="editBookingStart-${b.id}" value="${b.startDate}" /></label>
+            <label>End <input type="date" id="editBookingEnd-${b.id}" value="${b.endDate}" /></label>
+            <label style="flex:1; min-width:160px;">Notes <input type="text" id="editBookingNotes-${b.id}" value="${(b.notes || '').replace(/"/g, '&quot;')}" /></label>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn small primary" onclick="saveEditBooking(${b.id})">Save</button>
+            <button class="btn small" onclick="cancelEditBooking()">Cancel</button>
+          </div>
+        </div>
+      `;
+    }
+    return `
     <div class="owner-list-item" id="booking-row-${b.id}">
       <div>
         <strong>${niceDate(b.startDate)} – ${niceDate(b.endDate)}</strong>
@@ -604,9 +622,13 @@ async function loadBookings() {
         ${b.conflict ? '<span class="badge cancelled">⚠ Overlaps another calendar</span>' : ''}
         ${b.notes ? `<div class="job-meta">${b.notes}</div>` : ''}
       </div>
-      <button class="btn small danger" onclick="deleteBooking(${b.id})">Remove</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn small" onclick="startEditBooking(${b.id})">Edit</button>
+        <button class="btn small danger" onclick="deleteBooking(${b.id})">Remove</button>
+      </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 // ---- Booking calendar (Gantt-style month grid — continuous bars from check-in to
@@ -984,6 +1006,35 @@ window.toggleRequestAddon = (addonId) => {
 window.deleteBooking = async (id) => {
   await api('/api/owner/bookings/' + id, { method: 'DELETE' });
   loadBookings();
+};
+
+window.startEditBooking = (id) => {
+  editingBookingId = id;
+  loadBookings();
+};
+
+window.cancelEditBooking = () => {
+  editingBookingId = null;
+  loadBookings();
+};
+
+// Editing an iCal-synced booking's dates is how an owner corrects a calendar that's
+// wrong or stale (the source platform hasn't caught up yet) — the backend converts it
+// to a manual booking on save specifically so it survives the next automatic sync
+// instead of getting silently overwritten again a few hours later.
+window.saveEditBooking = async (id) => {
+  const startDate = document.getElementById(`editBookingStart-${id}`).value;
+  const endDate = document.getElementById(`editBookingEnd-${id}`).value;
+  const notes = document.getElementById(`editBookingNotes-${id}`).value;
+  if (!startDate || !endDate) { alert('Please pick both a start and end date.'); return; }
+  try {
+    await api('/api/owner/bookings/' + id, { method: 'PUT', body: JSON.stringify({ startDate, endDate, notes }) });
+    editingBookingId = null;
+    loadBookings();
+    loadVisits();
+  } catch (e) {
+    alert('Could not save changes: ' + e.message);
+  }
 };
 
 window.deleteRequest = async (id) => {

@@ -3812,6 +3812,20 @@ document.getElementById('backfillCheckoutDatesBtn').addEventListener('click', as
   }
 });
 
+document.getElementById('backfillMaxwellScheduleBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('backfillMaxwellScheduleBtn');
+  btn.disabled = true;
+  try {
+    const result = await api('/api/appointments/backfill-maxwell-schedule', { method: 'POST' });
+    alert(result.created > 0 ? `Scheduled ${result.created} missing checkout visit(s). They're unassigned — assign a technician from the schedule.` : 'No missing checkout visits found.');
+    loadAppointments();
+  } catch (e) {
+    alert('Could not run this: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 document.getElementById('saveNotificationEmailBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('notificationEmailStatus');
   const btn = document.getElementById('saveNotificationEmailBtn');

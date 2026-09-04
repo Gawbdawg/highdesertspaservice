@@ -670,6 +670,32 @@ router.post('/bookings', (req, res) => {
   res.status(201).json(booking);
 });
 
+// Lets an owner correct a booking's dates directly — most often to fix a calendar
+// synced in from iCal that's wrong or stale (a cancelled reservation the platform
+// hasn't updated yet, a checkout date that's off by a day, etc.). If the booking
+// being edited came from iCal, this converts it to source:'manual' so the next
+// periodic sync (which wipes and recreates every source:'ical' booking straight from
+// the live feed — see lib/icalSync.js#syncCustomerCalendar) leaves this corrected
+// version alone instead of quietly overwriting it again a few hours later. A 'block'
+// booking keeps its type; only dates/notes are editable here.
+router.put('/bookings/:id', (req, res) => {
+  const booking = store.getById('bookings', req.params.id);
+  if (!booking || !myProperty(req, booking.customerId)) {
+    return res.status(404).json({ error: 'Booking not found' });
+  }
+  const { startDate, endDate, notes } = req.body;
+  if (!startDate || !endDate) {
+    return res.status(400).json({ error: 'startDate and endDate are required' });
+  }
+  const updates = { startDate, endDate };
+  if (notes !== undefined) updates.notes = notes;
+  if (booking.source === 'ical') updates.source = 'manual';
+  const updated = store.update('bookings', booking.id, updates);
+  maybeCreateCheckoutAppointment(booking.customerId, endDate);
+  cancelConflictingCheckoutAppointments(booking.customerId);
+  res.json(updated);
+});
+
 router.delete('/bookings/:id', (req, res) => {
   const booking = store.getById('bookings', req.params.id);
   if (!booking || !myProperty(req, booking.customerId)) {

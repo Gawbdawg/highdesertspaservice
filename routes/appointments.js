@@ -5,6 +5,7 @@ const { syncInvoiceForCompletedAppointment, createOrSyncInvoiceWithTier } = requ
 const { notifyOwnerJobCompleted } = require('../lib/jobCompletionEmail');
 const { makeCustomerMatcher } = require('../lib/customerMatch');
 const { futureDates } = require('../lib/recurrence');
+const { scheduleAllUpcomingCheckouts } = require('../lib/turnoverSchedule');
 const router = express.Router();
 
 function enrich(appt) {
@@ -353,6 +354,15 @@ router.post('/backfill-checkout-dates', (req, res) => {
     }
   });
   res.json({ updated });
+});
+
+// Schedules a checkout visit for any calendar booking that's missing one. Visits
+// created this way are left unassigned (technicianId: null) on purpose — Maxwell
+// reviews the schedule as admin and assigns a real technician to each one himself,
+// rather than the system guessing who should do the work.
+router.post('/backfill-maxwell-schedule', (req, res) => {
+  const scheduled = scheduleAllUpcomingCheckouts();
+  res.json(scheduled);
 });
 
 module.exports = router;
