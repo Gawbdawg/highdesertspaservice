@@ -2,7 +2,7 @@ const express = require('express');
 const store = require('../lib/store');
 const { requireOwnerAuth, hashPassword, checkPassword, sanitizeOwner } = require('../lib/auth');
 const { syncCustomerCalendar, guessLabel } = require('../lib/icalSync');
-const { maybeCreateCheckoutAppointment, cancelConflictingCheckoutAppointments, cancelAppointmentsInBlock } = require('../lib/turnoverSchedule');
+const { maybeCreateCheckoutAppointment, cancelConflictingCheckoutAppointments } = require('../lib/turnoverSchedule');
 const { geocodeAddress } = require('../lib/geocode');
 const { previewFrequencyPricing, maybeCreateCancellationFeeInvoice } = require('../lib/autoInvoice');
 const { notifyAdminNewServiceRequest } = require('../lib/notifications');
@@ -647,10 +647,11 @@ router.post('/bookings', (req, res) => {
     return res.status(400).json({ error: 'propertyId, startDate and endDate are required' });
   }
   if (!myProperty(req, propertyId)) return res.status(404).json({ error: 'Property not found' });
-  // 'block' — the property is unavailable for the full range, no exceptions (a
-  // renovation, painting, anything where nobody should be scheduled at all) — vs the
-  // default 'guest', a normal stay that only affects scheduling around its checkout
-  // day (see lib/turnoverSchedule.js).
+  // 'block' is kept as a calendar label for the owner's own reference (e.g. a
+  // renovation) — it no longer changes scheduling in any way: every property still
+  // gets its regular service on schedule whether it's marked blocked, occupied, or
+  // empty. (A block used to auto-cancel anything scheduled inside it; that's been
+  // removed — service should never be skipped just because a property is blocked.)
   const bookingType = type === 'block' ? 'block' : 'guest';
   const booking = store.create('bookings', {
     customerId: Number(propertyId),
@@ -660,20 +661,12 @@ router.post('/bookings', (req, res) => {
     source: 'manual',
     type: bookingType,
   });
-  if (bookingType === 'block') {
-    // A block is an explicit, unambiguous "nothing happens here" declaration —
-    // immediately cancel anything already scheduled inside it, rather than leaving the
-    // owner to notice a stray visit still on the calendar and have to cancel it
-    // themselves (see lib/turnoverSchedule.js#cancelAppointmentsInBlock).
-    cancelAppointmentsInBlock(Number(propertyId), startDate, endDate, notes);
-  } else {
-    maybeCreateCheckoutAppointment(Number(propertyId), endDate);
-    // This new booking might reveal that some OTHER already-scheduled turnover cleaning
-    // for this property now falls on a day it turns out a guest is still there (e.g. this
-    // manually-entered stay overlaps one already on the calendar) — see
-    // lib/turnoverSchedule.js#cancelConflictingCheckoutAppointments.
-    cancelConflictingCheckoutAppointments(Number(propertyId));
-  }
+  maybeCreateCheckoutAppointment(Number(propertyId), endDate);
+  // This new booking might reveal that some OTHER already-scheduled turnover cleaning
+  // for this property now falls on a day it turns out a guest is still there (e.g. this
+  // manually-entered stay overlaps one already on the calendar) — see
+  // lib/turnoverSchedule.js#cancelConflictingCheckoutAppointments.
+  cancelConflictingCheckoutAppointments(Number(propertyId));
   res.status(201).json(booking);
 });
 
