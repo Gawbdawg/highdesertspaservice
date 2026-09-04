@@ -596,9 +596,11 @@ async function loadBookings() {
     <div class="owner-list-item" id="booking-row-${b.id}">
       <div>
         <strong>${niceDate(b.startDate)} – ${niceDate(b.endDate)}</strong>
-        ${b.source === 'ical'
-          ? `<span class="badge sent">Auto-synced${b.icalSourceLabel ? ' — ' + b.icalSourceLabel : ''}</span>`
-          : '<span class="badge completed">Manual</span>'}
+        ${b.type === 'block'
+          ? '<span class="badge cancelled">Blocked — no service</span>'
+          : (b.source === 'ical'
+            ? `<span class="badge sent">Auto-synced${b.icalSourceLabel ? ' — ' + b.icalSourceLabel : ''}</span>`
+            : '<span class="badge completed">Manual</span>')}
         ${b.conflict ? '<span class="badge cancelled">⚠ Overlaps another calendar</span>' : ''}
         ${b.notes ? `<div class="job-meta">${b.notes}</div>` : ''}
       </div>
@@ -707,22 +709,29 @@ function renderBookingGanttGrid() {
     // that just wraps to next week because the stay continues past this row still
     // fills its last visible cell fully, since the guest genuinely is there that whole
     // day and beyond.
+    // A guest booking's checkout day is only partially "occupied" (see comment above)
+    // since a same-day turnover cleaning is expected — but a block has no such
+    // exception, the property is off-limits for its full stated range, so its bars
+    // always fill the day edge-to-edge on both ends.
     const CHECKOUT_DAY_FRACTION = 0.4;
     const barsHtml = segs.map((seg) => {
       const b = seg.booking;
-      const label = b.notes ? b.notes : 'Booked';
+      const isBlock = b.type === 'block';
+      const label = isBlock ? (b.notes ? `Blocked: ${b.notes}` : 'Blocked') : (b.notes ? b.notes : 'Booked');
       const left = (seg.startCol / 7) * 100;
-      const endFraction = seg.isActualEnd ? CHECKOUT_DAY_FRACTION : 1;
+      const endFraction = (seg.isActualEnd && !isBlock) ? CHECKOUT_DAY_FRACTION : 1;
       const width = ((seg.endCol - seg.startCol) + endFraction) / 7 * 100;
       const top = barTopBase + seg.lane * laneHeight;
       const roundClass = `${seg.isActualStart ? 'round-start' : ''} ${seg.isActualEnd ? 'round-end' : ''}`;
       const manualClass = b.source === 'ical' ? '' : 'gantt-bar-manual';
       const conflictClass = b.conflict ? 'gantt-bar-conflict' : '';
-      const bg = bookingColor(b.id);
+      const blockClass = isBlock ? 'gantt-bar-block' : '';
+      const bg = isBlock ? undefined : bookingColor(b.id);
       const sourceNote = b.icalSourceLabel ? ` (${b.icalSourceLabel})` : '';
       const conflictNote = b.conflict ? ' — ⚠ overlaps another calendar, possible double-booking' : '';
       const title = `${label}${sourceNote} — ${niceDate(b.startDate)} to ${niceDate(b.endDate)}${conflictNote}`.replace(/"/g, '&quot;');
-      return `<div class="gantt-bar ${manualClass} ${conflictClass} ${roundClass}" style="left:${left}%; width:${width}%; top:${top}px; background:${bg};" title="${title}" onclick="highlightBookingRow(${b.id})">
+      const bgStyle = bg ? `background:${bg};` : '';
+      return `<div class="gantt-bar ${manualClass} ${conflictClass} ${blockClass} ${roundClass}" style="left:${left}%; width:${width}%; top:${top}px; ${bgStyle}" title="${title}" onclick="highlightBookingRow(${b.id})">
         <span class="gantt-bar-label">${b.conflict ? '⚠ ' : ''}${label.replace(/</g, '&lt;')}</span>
       </div>`;
     }).join('');
@@ -1029,18 +1038,22 @@ document.getElementById('saveIcalBtn').addEventListener('click', async () => {
 });
 
 document.getElementById('addBookingBtn').addEventListener('click', async () => {
+  const type = document.getElementById('bookingType').value;
   const startDate = document.getElementById('bookingStart').value;
   const endDate = document.getElementById('bookingEnd').value;
   const notes = document.getElementById('bookingNotes').value;
-  if (!startDate || !endDate) { alert('Please pick both a check-in and check-out date.'); return; }
+  if (!startDate || !endDate) { alert('Please pick both a start and end date.'); return; }
   const btn = document.getElementById('addBookingBtn');
   btn.disabled = true;
   try {
-    await api('/api/owner/bookings', { method: 'POST', body: JSON.stringify({ propertyId: selectedPropertyId, startDate, endDate, notes }) });
+    await api('/api/owner/bookings', { method: 'POST', body: JSON.stringify({ propertyId: selectedPropertyId, startDate, endDate, notes, type }) });
     document.getElementById('bookingStart').value = '';
     document.getElementById('bookingEnd').value = '';
     document.getElementById('bookingNotes').value = '';
     loadBookings();
+    // A block may have just cancelled a visit shown on the Visits tab — refresh it in
+    // the background so the owner doesn't go looking for it and hit a stale row.
+    loadVisits();
   } catch (e) {
     alert('Could not add booking: ' + e.message);
   } finally {

@@ -2,7 +2,7 @@ const express = require('express');
 const store = require('../lib/store');
 const { requireOwnerAuth, hashPassword, checkPassword, sanitizeOwner } = require('../lib/auth');
 const { syncCustomerCalendar, guessLabel } = require('../lib/icalSync');
-const { maybeCreateCheckoutAppointment, cancelConflictingCheckoutAppointments } = require('../lib/turnoverSchedule');
+const { maybeCreateCheckoutAppointment, cancelConflictingCheckoutAppointments, cancelAppointmentsInBlock } = require('../lib/turnoverSchedule');
 const { geocodeAddress } = require('../lib/geocode');
 const { previewFrequencyPricing, maybeCreateCancellationFeeInvoice } = require('../lib/autoInvoice');
 const { notifyAdminNewServiceRequest } = require('../lib/notifications');
@@ -636,24 +636,38 @@ router.get('/bookings', (req, res) => {
 });
 
 router.post('/bookings', (req, res) => {
-  const { propertyId, startDate, endDate, notes } = req.body;
+  const { propertyId, startDate, endDate, notes, type } = req.body;
   if (!propertyId || !startDate || !endDate) {
     return res.status(400).json({ error: 'propertyId, startDate and endDate are required' });
   }
   if (!myProperty(req, propertyId)) return res.status(404).json({ error: 'Property not found' });
+  // 'block' — the property is unavailable for the full range, no exceptions (a
+  // renovation, painting, anything where nobody should be scheduled at all) — vs the
+  // default 'guest', a normal stay that only affects scheduling around its checkout
+  // day (see lib/turnoverSchedule.js).
+  const bookingType = type === 'block' ? 'block' : 'guest';
   const booking = store.create('bookings', {
     customerId: Number(propertyId),
     startDate,
     endDate,
     notes: notes || '',
     source: 'manual',
+    type: bookingType,
   });
-  maybeCreateCheckoutAppointment(Number(propertyId), endDate);
-  // This new booking might reveal that some OTHER already-scheduled turnover cleaning
-  // for this property now falls on a day it turns out a guest is still there (e.g. this
-  // manually-entered stay overlaps one already on the calendar) — see
-  // lib/turnoverSchedule.js#cancelConflictingCheckoutAppointments.
-  cancelConflictingCheckoutAppointments(Number(propertyId));
+  if (bookingType === 'block') {
+    // A block is an explicit, unambiguous "nothing happens here" declaration —
+    // immediately cancel anything already scheduled inside it, rather than leaving the
+    // owner to notice a stray visit still on the calendar and have to cancel it
+    // themselves (see lib/turnoverSchedule.js#cancelAppointmentsInBlock).
+    cancelAppointmentsInBlock(Number(propertyId), startDate, endDate, notes);
+  } else {
+    maybeCreateCheckoutAppointment(Number(propertyId), endDate);
+    // This new booking might reveal that some OTHER already-scheduled turnover cleaning
+    // for this property now falls on a day it turns out a guest is still there (e.g. this
+    // manually-entered stay overlaps one already on the calendar) — see
+    // lib/turnoverSchedule.js#cancelConflictingCheckoutAppointments.
+    cancelConflictingCheckoutAppointments(Number(propertyId));
+  }
   res.status(201).json(booking);
 });
 

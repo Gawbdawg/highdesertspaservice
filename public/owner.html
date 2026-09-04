@@ -382,11 +382,18 @@
             </div>
 
             <div class="calendar-form-row">
-              <label>Check-in <input type="date" id="bookingStart" /></label>
-              <label>Check-out <input type="date" id="bookingEnd" /></label>
+              <label>Type
+                <select id="bookingType">
+                  <option value="guest">Guest booking</option>
+                  <option value="block">Block dates (no service — e.g. renovation)</option>
+                </select>
+              </label>
+              <label>Start <input type="date" id="bookingStart" /></label>
+              <label>End <input type="date" id="bookingEnd" /></label>
               <label style="flex:1; min-width:160px;">Notes <input type="text" id="bookingNotes" placeholder="optional" /></label>
               <button class="btn primary" id="addBookingBtn">Add manually</button>
             </div>
+            <p class="portal-sub" style="margin:4px 0 0;">A guest booking works around your service as usual. Blocking dates cancels any visit already scheduled in that range — nothing will happen at the property at all until the block ends.</p>
             <div id="bookingsList"></div>
           </div>
         </div>

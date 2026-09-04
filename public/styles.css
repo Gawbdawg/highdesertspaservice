@@ -290,6 +290,14 @@ textarea { width: 100%; resize: vertical; }
    the gantt-bar-manual's ring if a manual entry happens to be the one that conflicts. */
 .gantt-bar-conflict { box-shadow: 0 0 0 2px #dc2626 inset; }
 .gantt-bar-manual.gantt-bar-conflict { box-shadow: 0 0 0 2px #dc2626 inset, inset 0 0 0 4.5px rgba(255,255,255,0.8); }
+/* A "block" (property unavailable, e.g. a renovation — see lib/turnoverSchedule.js's
+   propertyBlockedOn) always renders in this same solid diagonal-striped dark style
+   regardless of which stay-color slot it would otherwise land in, so it reads at a
+   glance as fundamentally different from a bookable guest stay. */
+.gantt-bar-block {
+  background: repeating-linear-gradient(135deg, #3a4750, #3a4750 8px, #2a343b 8px, #2a343b 16px) !important;
+  box-shadow: none;
+}
 .gantt-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 6px 0 10px; font-size: 12px; color: var(--text-faint); }
 .gantt-legend-swatch { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
 .owner-list-item.flash-highlight { animation: ganttFlashHighlight 1.2s ease; }
