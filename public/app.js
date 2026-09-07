@@ -2282,7 +2282,7 @@ function invoiceRowHtml(i) {
             <button class="btn small" onclick="viewInvoice(${i.id})">View invoice</button>
             ${i.autopayReady
               ? `<button class="btn small primary" onclick="processPayment(${i.id})">Process payment</button>`
-              : `<button class="btn small" onclick="emailInvoice(${i.id})">Email invoice</button>`}
+              : `<button class="btn small" onclick="emailInvoice(${i.id}, ${JSON.stringify(i.recipientName || '')}, ${JSON.stringify(i.recipientEmail || '')})">Email invoice</button>`}
             ${i.isCombined
               ? `<button class="btn small" onclick="viewInvoiceLineItems(${i.id})">View jobs</button>
                  <button class="btn small" onclick="editCombinedInvoice(${i.id})">Edit</button>`
@@ -2375,7 +2375,21 @@ window.sendAllInvoicesForParty = async (key) => {
   if (!group) return;
   const toSend = group.rows.filter((i) => i.status === 'draft');
   if (!toSend.length) return;
-  if (!confirm(`Send ${toSend.length} invoice${toSend.length === 1 ? '' : 's'} to ${group.label} now?`)) return;
+
+  // These invoices are only grouped together on screen because they share a display
+  // label (see partyKeyFor) — the actual send always goes by each invoice's own
+  // resolved recipient (see routes/invoices.js#resolveInvoiceRecipient), never by this
+  // label. If that ever disagrees — two real recipients landed in the same visual
+  // group — surface it here loudly instead of quietly emailing both, so an
+  // unexpected second inbox getting a bill under someone else's name can't happen
+  // silently.
+  const distinctRecipients = [...new Set(toSend.map((i) => i.recipientEmail || '(no email on file)'))];
+  if (distinctRecipients.length > 1) {
+    alert(`Stopped: these ${toSend.length} invoices resolve to ${distinctRecipients.length} different email addresses (${distinctRecipients.join(', ')}), not just ${group.label}. Send them individually with "Email invoice" so each goes to the right person.`);
+    return;
+  }
+  const who = distinctRecipients[0] === '(no email on file)' ? group.label : `${group.label} (${distinctRecipients[0]})`;
+  if (!confirm(`Send ${toSend.length} invoice${toSend.length === 1 ? '' : 's'} to ${who} now?`)) return;
   let sent = 0;
   let failed = 0;
   for (const inv of toSend) {
@@ -2504,8 +2518,13 @@ window.viewInvoice = (id) => {
 // home has one linked, otherwise the home's own email — with a short thank-you note
 // and a link to view/pay it online. Replaces the old copy-the-link-and-text-it-
 // yourself workflow entirely.
-window.emailInvoice = async (id) => {
-  if (!confirm('Send this invoice to the customer now?')) return;
+// Shows exactly who this will go to (name + email, computed server-side by the same
+// logic that actually sends it — see routes/invoices.js#resolveInvoiceRecipient) right
+// in the confirmation, so a mismatched or unexpected recipient gets caught here,
+// before sending, instead of after an owner reports getting the wrong bill.
+window.emailInvoice = async (id, recipientName, recipientEmail) => {
+  const who = recipientEmail ? `${recipientName || 'this recipient'} (${recipientEmail})` : 'the customer on file';
+  if (!confirm(`Send this invoice to ${who} now?`)) return;
   try {
     const result = await api(`/api/invoices/${id}/email`, { method: 'POST' });
     alert(result.dryRun

@@ -26,11 +26,31 @@ function money(n) {
 //     invoice) — an ownerId may also be set alongside it just so billing/autopay still
 //     resolves to the owner, but display-wise this should read as "this property's
 //     invoice," not "this owner's invoice."
+// Who an invoice actually gets emailed to — the linked owner (if there is one) is
+// preferred over the home's own email even for a single-home invoice, since owners
+// are the billed party and a home often has no email on file at all (e.g. a vacation
+// rental only the owner ever logs into). Falls back to the home's own email only
+// when there's no linked owner account.
+function resolveInvoiceRecipient(invoice) {
+  if (invoice.ownerId) {
+    const owner = store.getById('owners', invoice.ownerId);
+    return owner && owner.email ? { email: owner.email, name: owner.name } : null;
+  }
+  const customer = store.getById('customers', invoice.customerId);
+  if (!customer) return null;
+  if (customer.ownerId) {
+    const owner = store.getById('owners', customer.ownerId);
+    if (owner && owner.email) return { email: owner.email, name: owner.name };
+  }
+  return customer.email ? { email: customer.email, name: customer.name } : null;
+}
+
 function enrich(inv) {
   const hasLineItems = Array.isArray(inv.lineItems) && inv.lineItems.length > 0;
   if (!inv.customerId && inv.ownerId) {
     const owner = store.getById('owners', inv.ownerId);
     const propertyCount = new Set((inv.lineItems || []).map((li) => li.customerId)).size;
+    const combinedRecipient = resolveInvoiceRecipient(inv);
     return {
       ...inv,
       customerName: `${owner ? owner.name : 'Unknown owner'} — ${propertyCount} propert${propertyCount === 1 ? 'y' : 'ies'}`,
@@ -41,6 +61,13 @@ function enrich(inv) {
       // A combined invoice IS the thing that needs sending/collecting — never deferred.
       isMonthlyDeferred: false,
       autopayReady: invoiceAutopayReady(inv),
+      // Exactly who "Email invoice" will send to — computed the same way the actual
+      // send does (see resolveInvoiceRecipient above), so the admin can see and
+      // double-check the real recipient in the UI *before* clicking send, not just
+      // after. Never derived from anything display-only (like customerName) so this
+      // can't silently drift out of sync with where the email actually goes.
+      recipientName: combinedRecipient ? combinedRecipient.name : null,
+      recipientEmail: combinedRecipient ? combinedRecipient.email : null,
     };
   }
   const customer = store.getById('customers', inv.customerId);
@@ -64,6 +91,7 @@ function enrich(inv) {
   // correct it directly (see PUT /:id below, which pushes an issuedDate edit back
   // onto the appointment whenever one is linked).
   const linkedAppointment = inv.appointmentId ? store.getById('appointments', inv.appointmentId) : null;
+  const recipient = resolveInvoiceRecipient(inv);
   return {
     ...inv,
     customerName: customer ? customer.name : 'Unknown customer',
@@ -72,6 +100,10 @@ function enrich(inv) {
     isMonthlyDeferred,
     autopayReady: invoiceAutopayReady(inv),
     appointmentDate: linkedAppointment ? linkedAppointment.date : null,
+    // See the comment on the combined-invoice branch above — same guarantee applies
+    // here: this is the actual computed recipient, not a display-only name.
+    recipientName: recipient ? recipient.name : null,
+    recipientEmail: recipient ? recipient.email : null,
   };
 }
 
@@ -295,25 +327,6 @@ router.delete('/:id/line-items/:sourceInvoiceId', (req, res) => {
 
 // Friendly description of what an invoice is billing for — used only in the "Email
 // invoice" note below, distinct from the raw line-item breakdown the admin sees in
-// Who an invoice actually gets emailed to — the linked owner (if there is one) is
-// preferred over the home's own email even for a single-home invoice, since owners
-// are the billed party and a home often has no email on file at all (e.g. a vacation
-// rental only the owner ever logs into). Falls back to the home's own email only
-// when there's no linked owner account.
-function resolveInvoiceRecipient(invoice) {
-  if (invoice.ownerId) {
-    const owner = store.getById('owners', invoice.ownerId);
-    return owner && owner.email ? { email: owner.email, name: owner.name } : null;
-  }
-  const customer = store.getById('customers', invoice.customerId);
-  if (!customer) return null;
-  if (customer.ownerId) {
-    const owner = store.getById('owners', customer.ownerId);
-    if (owner && owner.email) return { email: owner.email, name: owner.name };
-  }
-  return customer.email ? { email: customer.email, name: customer.name } : null;
-}
-
 // Emails the invoice straight to whoever's billed for it, with a short thank-you note
 // and a link to view/pay it online (the same public /pay/:id page "Copy pay link"
 // used to point at) — replaces the old copy-the-link-and-text-it-yourself workflow.
