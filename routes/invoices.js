@@ -7,7 +7,8 @@ const waveSync = require('../lib/waveSync');
 const { ownerQualifiesForMonthly } = require('../lib/monthlyInvoice');
 const { attemptAutopay, resolveOwnerForInvoice } = require('../lib/autopay');
 const { resyncAllDraftInvoices } = require('../lib/autoInvoice');
-const { sendPaymentReceipt } = require('../lib/receipt');
+const { sendPaymentReceipt, propertyReference } = require('../lib/receipt');
+const { buildInvoicePdf, pdfDocToBuffer } = require('../lib/invoicePdf');
 const stripe = require('../lib/stripeClient');
 const router = express.Router();
 
@@ -337,7 +338,7 @@ Thank you for continuing to trust High Desert Spa Service with your hot tub care
 
 Here's your invoice for ${description}: ${money(invoice.amount)}.${dueLine}
 
-You can view it and pay online any time here:
+A PDF copy is attached, and you can view it and pay online any time here:
 ${payLink}
 
 If you have any questions about this invoice, just reply to this email.
@@ -345,11 +346,30 @@ If you have any questions about this invoice, just reply to this email.
 Thanks again for being a valued customer!
 High Desert Spa Service`;
 
+  // A plain-text email is enough for most owners, but several bill the vacation-
+  // rental homeowners THEY work for and need a real invoice document to attach to
+  // their own bills, not just a summary sentence — same reasoning as the payment
+  // receipt PDF (lib/receiptPdf.js), just for the bill itself instead of the
+  // after-payment confirmation.
+  let attachments;
+  try {
+    const pdfDoc = buildInvoicePdf({
+      invoice, recipient, property: propertyReference(invoice), payLink, businessName: 'High Desert Spa Service',
+    });
+    const pdfBuffer = await pdfDocToBuffer(pdfDoc);
+    attachments = [{ filename: `invoice-${invoice.id}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }];
+  } catch (pdfErr) {
+    // Never let a PDF-generation hiccup block the invoice email itself — the
+    // plain-text body already has everything a customer needs, the PDF is a bonus.
+    console.error(`Could not build invoice PDF for invoice #${invoice.id}:`, pdfErr.message);
+  }
+
   try {
     const result = await sendEmail({
       to: recipient.email,
       subject: `Your High Desert Spa Service invoice — ${money(invoice.amount)}`,
       text,
+      attachments,
     });
     if (invoice.status === 'draft') {
       store.update('invoices', invoice.id, { status: 'sent' });
@@ -386,13 +406,27 @@ router.post('/:id/send-nudge', async (req, res) => {
 
   const origin = `${req.protocol}://${req.get('host')}`;
   const payLink = `${origin}/pay/${invoice.id}`;
-  const text = `${nudge.text}\n\nView and pay online any time here: ${payLink}\n\nHigh Desert Spa Service`;
+  const text = `${nudge.text}\n\nA PDF copy of the invoice is attached. View and pay online any time here: ${payLink}\n\nHigh Desert Spa Service`;
+
+  // Same attached-invoice-PDF treatment as the plain /:id/email send above — a
+  // reminder is still the same bill, so it should carry the same document.
+  let attachments;
+  try {
+    const pdfDoc = buildInvoicePdf({
+      invoice, recipient, property: propertyReference(invoice), payLink, businessName: 'High Desert Spa Service',
+    });
+    const pdfBuffer = await pdfDocToBuffer(pdfDoc);
+    attachments = [{ filename: `invoice-${invoice.id}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }];
+  } catch (pdfErr) {
+    console.error(`Could not build invoice PDF for invoice #${invoice.id}:`, pdfErr.message);
+  }
 
   try {
     const result = await sendEmail({
       to: recipient.email,
       subject: `Payment reminder — ${money(invoice.amount)} due, High Desert Spa Service`,
       text,
+      attachments,
     });
     if (invoice.status === 'draft') {
       store.update('invoices', invoice.id, { status: 'sent' });
