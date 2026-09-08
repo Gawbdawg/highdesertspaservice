@@ -41,6 +41,54 @@ function selectedProperty() {
   return properties.find((p) => p.id === selectedPropertyId);
 }
 
+// If an owner requests a login code, then leaves the tab (most commonly: they switch
+// to their Mail app to read it) and the browser reloads the page before they come
+// back — very common on mobile, where backgrounding a tab for a bit can make it
+// reload from scratch — the in-memory "show the code box" state is gone. Without
+// this, they'd land back on the plain "enter your email" screen with a code already
+// in hand and nowhere obvious to put it. This persists a small marker across
+// reloads so the code-entry step can be restored. See PENDING_CODE_TTL_MS below,
+// which mirrors the server's own code expiry (lib/emailLogin.js's CODE_TTL_MS) —
+// no point restoring a box for a code that's already expired.
+const PENDING_CODE_KEY = 'ownerPendingLoginCode';
+const PENDING_CODE_TTL_MS = 10 * 60 * 1000;
+
+function savePendingLoginCode(email) {
+  try {
+    localStorage.setItem(PENDING_CODE_KEY, JSON.stringify({ email, requestedAt: Date.now() }));
+  } catch (e) {
+    // localStorage unavailable (private browsing, etc.) — this is a convenience
+    // restore only, safe to just skip it.
+  }
+}
+
+function clearPendingLoginCode() {
+  try {
+    localStorage.removeItem(PENDING_CODE_KEY);
+  } catch (e) {
+    // ignore
+  }
+}
+
+function restorePendingLoginCodeIfAny() {
+  let pending;
+  try {
+    pending = JSON.parse(localStorage.getItem(PENDING_CODE_KEY) || 'null');
+  } catch (e) {
+    pending = null;
+  }
+  if (!pending || !pending.email || !pending.requestedAt) return false;
+  if (Date.now() - pending.requestedAt > PENDING_CODE_TTL_MS) {
+    clearPendingLoginCode();
+    return false;
+  }
+  codeLoginEmail = pending.email;
+  document.getElementById('codeSentTo').textContent = `We sent a code to ${pending.email}. Enter it below (check spam if it doesn't show up in a minute).`;
+  document.getElementById('codeLoginStep1').classList.add('hidden');
+  document.getElementById('codeLoginStep2').classList.remove('hidden');
+  return true;
+}
+
 async function checkSession() {
   try {
     const owner = await api('/api/owner-auth/me');
@@ -51,7 +99,15 @@ async function checkSession() {
     termsView.classList.add('hidden');
     dashView.classList.add('hidden');
     logoutBtn.style.display = 'none';
-    maybeOpenSignupFromLink();
+    // A signup-link arrival (see maybeOpenSignupFromLink) is a more explicit, more
+    // recent signal of intent than a leftover pending-code marker, so it wins if
+    // both are somehow present.
+    const cameFromSignupLink = new URLSearchParams(window.location.search).get('signup') === '1';
+    if (cameFromSignupLink) {
+      maybeOpenSignupFromLink();
+    } else {
+      restorePendingLoginCodeIfAny();
+    }
   }
 }
 
@@ -1410,6 +1466,7 @@ document.getElementById('togglePasswordLoginBtn').addEventListener('click', () =
     : 'Use email code instead';
   document.getElementById('codeLoginStep1').classList.toggle('hidden', !showingPassword);
   document.getElementById('codeLoginStep2').classList.add('hidden');
+  if (!showingPassword) clearPendingLoginCode();
 });
 
 // ---- Forgot password (only reachable from the username/password fallback above —
@@ -1501,6 +1558,7 @@ async function sendLoginCode() {
   try {
     await api('/api/owner-auth/request-code', { method: 'POST', body: JSON.stringify({ email }) });
     codeLoginEmail = email;
+    savePendingLoginCode(email);
     document.getElementById('codeSentTo').textContent = `We sent a code to ${email}. Enter it below (check spam if it doesn't show up in a minute).`;
     document.getElementById('codeLoginStep1').classList.add('hidden');
     document.getElementById('codeLoginStep2').classList.remove('hidden');
@@ -1532,6 +1590,7 @@ async function verifyLoginCode() {
   btn.disabled = true;
   try {
     const owner = await api('/api/owner-auth/verify-code', { method: 'POST', body: JSON.stringify({ email: codeLoginEmail, code }) });
+    clearPendingLoginCode();
     await enterPortal(owner);
   } catch (e) {
     showError(e.message);
