@@ -84,6 +84,10 @@ function restorePendingLoginCodeIfAny() {
   }
   codeLoginEmail = pending.email;
   document.getElementById('codeSentTo').textContent = `We sent a code to ${pending.email}. Enter it below (check spam if it doesn't show up in a minute).`;
+  // Username/password is the default view (see owner.html) — swing fully over to the
+  // code-entry view instead of layering it on top of the still-visible password form.
+  document.getElementById('passwordLoginFields').classList.add('hidden');
+  document.getElementById('togglePasswordLoginBtn').textContent = 'Use username & password instead';
   document.getElementById('codeLoginStep1').classList.add('hidden');
   document.getElementById('codeLoginStep2').classList.remove('hidden');
   return true;

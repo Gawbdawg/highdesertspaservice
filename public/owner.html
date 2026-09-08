@@ -30,39 +30,43 @@
         <h1>Customer login</h1>
         <div id="loginError" class="portal-error hidden"></div>
 
-        <!-- Email + code (default). Real <form>s (not just divs) below are what let
-             Chrome/Safari/Firefox actually offer to save these and autofill them next
-             time — browsers key their "remember this" heuristics off a form submit
-             event, not arbitrary button clicks. See the matching submit listeners in
-             owner.js (they replaced the old click listeners for the same reason). -->
-        <form id="codeLoginStep1">
-          <p class="portal-sub" style="margin:0 0 8px;">Enter your email and we'll send you a one-time code — no password needed.</p>
-          <label>Email<input type="email" id="codeEmail" autocomplete="email" /></label>
-          <button class="btn primary" type="submit" id="sendCodeBtn">Send me a code</button>
-        </form>
-        <form id="codeLoginStep2" class="hidden">
-          <p class="portal-sub" id="codeSentTo" style="margin:0 0 8px;"></p>
-          <label>6-digit code<input type="text" id="codeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" /></label>
-          <button class="btn primary" type="submit" id="verifyCodeBtn">Log in</button>
-          <button class="btn small" type="button" id="resendCodeBtn" style="margin-top:6px;">Send a new code</button>
-        </form>
-
-        <div style="border-top:1px solid #eef1f2; margin-top:16px; padding-top:12px;">
-          <button class="btn small" type="button" id="togglePasswordLoginBtn">Use username &amp; password instead</button>
-        </div>
-
-        <!-- Username + password (fallback for older accounts) -->
-        <form id="passwordLoginFields" class="hidden" style="margin-top:12px;">
+        <!-- Username + password (default). Real <form>s (not just divs) below are
+             what let Chrome/Safari/Firefox actually offer to save these and autofill
+             them next time — browsers key their "remember this" heuristics off a form
+             submit event, not arbitrary button clicks. See the matching submit
+             listeners in owner.js (they replaced the old click listeners for the same
+             reason). -->
+        <form id="passwordLoginFields">
           <label>Username<input type="text" id="loginUsername" autocomplete="username" /></label>
           <label>Password<input type="password" id="loginPassword" autocomplete="current-password" /></label>
           <button class="btn primary" type="submit" id="loginBtn">Log in</button>
           <button class="btn small" type="button" id="showForgotPasswordBtn" style="margin-top:6px;">Forgot password?</button>
         </form>
 
+        <div style="border-top:1px solid #eef1f2; margin-top:16px; padding-top:12px;">
+          <button class="btn small" type="button" id="togglePasswordLoginBtn">Use email code instead</button>
+        </div>
+
+        <!-- Email + code (no password needed — mainly for accounts the admin
+             bulk-created that never had one set). Hidden until the toggle above is
+             clicked, unless restorePendingLoginCodeIfAny() in owner.js brings it back
+             on load because a code was already requested and might still be valid. -->
+        <form id="codeLoginStep1" class="hidden" style="margin-top:12px;">
+          <p class="portal-sub" style="margin:0 0 8px;">Enter your email and we'll send you a one-time code — no password needed.</p>
+          <label>Email<input type="email" id="codeEmail" autocomplete="email" /></label>
+          <button class="btn primary" type="submit" id="sendCodeBtn">Send me a code</button>
+        </form>
+        <form id="codeLoginStep2" class="hidden" style="margin-top:12px;">
+          <p class="portal-sub" id="codeSentTo" style="margin:0 0 8px;"></p>
+          <label>6-digit code<input type="text" id="codeInput" inputmode="numeric" maxlength="6" autocomplete="one-time-code" /></label>
+          <button class="btn primary" type="submit" id="verifyCodeBtn">Log in</button>
+          <button class="btn small" type="button" id="resendCodeBtn" style="margin-top:6px;">Send a new code</button>
+        </form>
+
         <!-- Forgot password, step 1: email a reset code. Only reachable from the
-             username/password fallback above — the default email+code login is
-             already effectively "I forgot my password", so there's nothing to reset
-             from there. -->
+             username/password form above — the email+code login (the "Use email code
+             instead" toggle) is already effectively "I forgot my password", so
+             there's nothing to reset from there. -->
         <form id="forgotPasswordStep1" class="hidden" style="margin-top:12px;">
           <p class="portal-sub" style="margin:0 0 8px;">Enter your email and we'll send you a code to reset your password.</p>
           <label>Email<input type="email" id="forgotPasswordEmail" autocomplete="email" /></label>
