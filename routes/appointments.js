@@ -169,6 +169,24 @@ router.delete('/:id', (req, res) => {
     return res.status(204).end();
   }
 
+  // A checkout-triggered turnover cleaning (see lib/turnoverSchedule.js) only stays
+  // gone because a record for that checkout still exists to tell the next iCal
+  // resync "this one's already handled" (maybeCreateCheckoutAppointment's `already`
+  // check). A hard DELETE erases that record entirely, so a checkout cleaning
+  // removed this way looked identical to one that had never been scheduled at all —
+  // the next sync (every few hours) recreated it from scratch, often hours later and
+  // for a date already underway, which is exactly what an owner reports as "I
+  // cancelled it and it came back." Cancelling it instead has the same visible
+  // effect (gone from every active view, the tech's schedule, the owner's upcoming
+  // list) while leaving the one thing the resync actually checks for. Appointments
+  // with no checkoutDate (manually created, residential recurring, etc.) aren't
+  // touched by that resync at all, so a real delete for those is still safe exactly
+  // as before.
+  if (appt.checkoutDate) {
+    store.update('appointments', req.params.id, { status: 'cancelled' });
+    return res.status(204).end();
+  }
+
   store.remove('appointments', req.params.id);
   res.status(204).end();
 });
