@@ -110,7 +110,13 @@ router.get('/appointments', (req, res) => {
   let appts = store.getAll('appointments').filter((a) => a.technicianId === technicianId);
 
   if (req.query.date) {
-    appts = appts.filter((a) => a.date === req.query.date);
+    // This is "Today's Schedule" / the route-optimization view — the actual list of
+    // stops a tech is meant to go do. A cancelled visit (e.g. the owner cancelled it
+    // through their portal) must never appear here, or a tech can show up to a
+    // property that was cancelled out from under them. The ?all=1 branch below is
+    // different on purpose: that's the Calendar tab looking back over history, where
+    // a cancelled day should still show (labeled cancelled), not disappear.
+    appts = appts.filter((a) => a.date === req.query.date && a.status !== 'cancelled');
   } else if (req.query.all === '1') {
     // no date filter — the calendar paginates by month client-side
   } else {
