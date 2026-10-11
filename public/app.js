@@ -2446,7 +2446,8 @@ window.viewInvoiceLineItems = (id) => {
     <div class="profile-history-item">
       <strong>${li.date} — ${li.customerName}</strong>
       <div class="meta">${li.serviceType} · ${money(li.amount)}</div>
-      ${canRemove ? `<button class="btn small danger" style="margin-top:4px;" onclick="removeInvoiceLineItem(${i.id}, ${li.sourceInvoiceId})">Remove from invoice</button>` : ''}
+      ${canRemove ? `<button class="btn small" style="margin-top:4px;" onclick="editInvoiceLineItem(${i.id}, ${li.sourceInvoiceId})">Edit</button>
+      <button class="btn small danger" style="margin-top:4px;" onclick="removeInvoiceLineItem(${i.id}, ${li.sourceInvoiceId})">Remove from invoice</button>` : ''}
     </div>
   `).join('') || '<div class="empty-state">No jobs on this invoice.</div>';
   openModal(`Jobs on invoice #${i.id}`, `
@@ -2472,6 +2473,34 @@ window.removeInvoiceLineItem = async (invoiceId, sourceInvoiceId) => {
   } catch (e) {
     alert('Could not remove that job: ' + e.message);
   }
+};
+
+// Rename a job's service label and/or change its price on a combined invoice — see
+// routes/invoices.js's PUT /:id/line-items/:sourceInvoiceId.
+window.editInvoiceLineItem = (invoiceId, sourceInvoiceId) => {
+  const inv = state.invoices.find((x) => x.id === invoiceId);
+  const li = (inv.lineItems || []).find((x) => x.sourceInvoiceId === sourceInvoiceId);
+  openModal('Edit job on invoice #' + invoiceId, `
+    <p class="portal-hint" style="margin:0;">${li.date} — ${li.customerName}</p>
+    <label>Service name<input id="f_liService" value="${String(li.serviceType || '').replace(/"/g, '&quot;')}" /></label>
+    <label>Amount<input type="number" step="0.01" min="0" id="f_liAmount" value="${li.amount}" /></label>
+    <div class="modal-actions">
+      <button class="btn" onclick="viewInvoiceLineItems(${invoiceId})">Cancel</button>
+      <button class="btn primary" id="saveLineItemBtn">Save</button>
+    </div>
+  `);
+  document.getElementById('saveLineItemBtn').addEventListener('click', async () => {
+    try {
+      await api(`/api/invoices/${invoiceId}/line-items/${sourceInvoiceId}`, { method: 'PUT', body: JSON.stringify({
+        serviceType: document.getElementById('f_liService').value,
+        amount: document.getElementById('f_liAmount').value,
+      }) });
+      await loadInvoices();
+      viewInvoiceLineItems(invoiceId);
+    } catch (e) {
+      alert('Could not save: ' + e.message);
+    }
+  });
 };
 
 window.editCombinedInvoice = (id) => {

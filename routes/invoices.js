@@ -327,6 +327,42 @@ router.delete('/:id/line-items/:sourceInvoiceId', (req, res) => {
 
 // Friendly description of what an invoice is billing for — used only in the "Email
 // invoice" note below, distinct from the raw line-item breakdown the admin sees in
+// Edits one job's label and/or price on an already-generated combined/monthly invoice
+// (e.g. one line says "Vacation Rental Spa Cleaning" while the rest say "Hot Tub
+// Service"). Only allowed while the combined invoice is still draft/sent — a paid
+// invoice's lines are a record of what was charged. Changing a price recomputes the
+// combined total from the lines.
+router.put('/:id/line-items/:sourceInvoiceId', (req, res) => {
+  const invoice = store.getById('invoices', req.params.id);
+  if (!invoice || !(invoice.lineItems || []).length) {
+    return res.status(404).json({ error: 'Combined invoice not found' });
+  }
+  if (invoice.status === 'paid') {
+    return res.status(400).json({ error: 'This invoice is already paid, so its lines can no longer be edited.' });
+  }
+  const sourceInvoiceId = Number(req.params.sourceInvoiceId);
+  if (!invoice.lineItems.some((li) => li.sourceInvoiceId === sourceInvoiceId)) {
+    return res.status(404).json({ error: 'That job is not on this invoice' });
+  }
+  const { serviceType, amount } = req.body;
+  if (serviceType !== undefined && !String(serviceType).trim()) {
+    return res.status(400).json({ error: 'Service name cannot be blank' });
+  }
+  if (amount !== undefined && (!Number.isFinite(Number(amount)) || Number(amount) < 0)) {
+    return res.status(400).json({ error: 'Amount must be a number' });
+  }
+  const lineItems = invoice.lineItems.map((li) => {
+    if (li.sourceInvoiceId !== sourceInvoiceId) return li;
+    const next = { ...li };
+    if (serviceType !== undefined) next.serviceType = String(serviceType).trim();
+    if (amount !== undefined) next.amount = Number(amount);
+    return next;
+  });
+  const newTotal = lineItems.reduce((sum, li) => sum + Number(li.amount), 0);
+  const updated = store.update('invoices', invoice.id, { lineItems, amount: newTotal });
+  res.json({ invoice: enrich(updated) });
+});
+
 // Emails the invoice straight to whoever's billed for it, with a short thank-you note
 // and a link to view/pay it online (the same public /pay/:id page "Copy pay link"
 // used to point at) — replaces the old copy-the-link-and-text-it-yourself workflow.
