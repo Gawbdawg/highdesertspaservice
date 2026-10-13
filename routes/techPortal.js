@@ -348,6 +348,25 @@ router.get('/time-entries', (req, res) => {
   res.json({ entries, days: days_, openEntry, hourlyRate: tech ? (tech.hourlyRate || 0) : 0 });
 });
 
+// What this tech is owed vs. what's actually been paid to them, for the whole history
+// (not just the last 30 days), plus the full list of payments the office has recorded
+// for them (see routes/payouts.js — payment itself happens outside this app, so a
+// payout row is the record that money actually changed hands). Owed comes from the
+// same summarizeByDay math as everything else; balance = owed - paid.
+router.get('/pay-summary', (req, res) => {
+  const technicianId = req.session.technicianId;
+  const tech = store.getById('technicians', technicianId);
+  const entries = store.getAll('timeEntries').filter((e) => e.technicianId === technicianId);
+  const days = summarizeByDay(entries, () => tech);
+  const totalOwed = Math.round(days.reduce((sum, d) => sum + d.pay, 0) * 100) / 100;
+  const payouts = store.getAll('payouts')
+    .filter((p) => p.technicianId === technicianId)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.id - a.id)
+    .map((p) => ({ id: p.id, date: p.date, amount: Number(p.amount || 0), note: p.note || '' }));
+  const totalPaid = Math.round(payouts.reduce((sum, p) => sum + p.amount, 0) * 100) / 100;
+  res.json({ totalOwed, totalPaid, balance: Math.round((totalOwed - totalPaid) * 100) / 100, payouts });
+});
+
 router.post('/clock-in', (req, res) => {
   const technicianId = req.session.technicianId;
   const already = store.getAll('timeEntries').find((e) => e.technicianId === technicianId && !e.clockOutAt);

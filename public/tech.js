@@ -787,6 +787,8 @@ async function loadTimesheet() {
     }, 1000);
   }
 
+  loadPaySummary();
+
   const totalHours = data.days.reduce((sum, d) => sum + d.hours, 0);
   const totalGas = data.days.reduce((sum, d) => sum + d.gasStipend, 0);
   const totalPay = data.days.reduce((sum, d) => sum + d.pay, 0);
@@ -819,6 +821,42 @@ async function loadTimesheet() {
       <strong>$${d.pay.toFixed(2)}</strong>
     </div>
   `).join('');
+}
+
+// "Currently owed" is everything earned minus everything already paid out; "Paid" is
+// the running total of payments recorded for this tech. See routes/techPortal.js's
+// GET /pay-summary.
+async function loadPaySummary() {
+  const statsEl = document.getElementById('paySummaryStats');
+  const listEl = document.getElementById('payHistoryList');
+  try {
+    const data = await api('/api/tech/pay-summary');
+    const overpaid = data.balance < 0;
+    statsEl.innerHTML = `
+      <div class="stat-card">
+        <div class="stat-label">${overpaid ? 'Paid ahead' : 'Currently owed'}</div>
+        <div class="stat-value">$${Math.abs(data.balance).toFixed(2)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total paid</div>
+        <div class="stat-value">$${data.totalPaid.toFixed(2)}</div>
+      </div>
+    `;
+    listEl.innerHTML = data.payouts.length
+      ? data.payouts.map((p) => `
+        <div class="owner-list-item">
+          <div>
+            <strong>${niceDate(p.date)}</strong>
+            ${p.note ? `<div class="job-meta">${String(p.note).replace(/</g, '&lt;')}</div>` : ''}
+          </div>
+          <strong>$${p.amount.toFixed(2)}</strong>
+        </div>
+      `).join('')
+      : '<div class="empty-state">No payments recorded yet.</div>';
+  } catch (e) {
+    statsEl.innerHTML = '';
+    listEl.innerHTML = '<div class="empty-state">Could not load your pay history.</div>';
+  }
 }
 
 document.getElementById('clockToggleBtn').addEventListener('click', async () => {
