@@ -31,8 +31,34 @@ function withOwnerName(customer) {
   return { ...sanitizeCustomer(customer), ownerName: owner ? owner.name : null };
 }
 
+// For the Homes list: how much recurring service each home has on the books. "Recurring"
+// means appointments that belong to a series (seriesId set — made by "Schedule recurring
+// visits", an owner setting their frequency, or a recurring booking). Counts only what is
+// still ahead: scheduled (not cancelled/completed) visits dated today or later, in the
+// business's own timezone. seriesCount = how many separate recurring series are still
+// running; upcomingCount = total remaining visits across them.
+function recurringSummaryByCustomer() {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles' }).format(new Date());
+  const byCustomer = {};
+  store.getAll('appointments').forEach((a) => {
+    if (!a.seriesId || a.status !== 'scheduled' || !a.date || a.date < today) return;
+    const s = byCustomer[a.customerId] || (byCustomer[a.customerId] = { series: new Set(), upcomingCount: 0, nextDate: null });
+    s.series.add(a.seriesId);
+    s.upcomingCount += 1;
+    if (!s.nextDate || a.date < s.nextDate) s.nextDate = a.date;
+  });
+  return byCustomer;
+}
+
 router.get('/', (req, res) => {
-  res.json(store.getAll('customers').map(withOwnerName));
+  const recurring = recurringSummaryByCustomer();
+  res.json(store.getAll('customers').map((c) => {
+    const r = recurring[c.id];
+    return {
+      ...withOwnerName(c),
+      recurring: { seriesCount: r ? r.series.size : 0, upcomingCount: r ? r.upcomingCount : 0, nextDate: r ? r.nextDate : null },
+    };
+  }));
 });
 
 // One-click recovery if the live customer list ever comes back empty (e.g. a hosting

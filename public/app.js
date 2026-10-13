@@ -523,6 +523,7 @@ function renderCustomerTable() {
     <tr>
       <td>${c.name}</td>
       <td><span class="badge ${typeBadgeClass(c.type)}">${typeLabel(c.type)}</span></td>
+      <td>${recurringCell(c)}</td>
       <td>${c.phone || ''}</td>
       <td>${c.email || ''}</td>
       <td>${c.address || ''} ${addressStatusBadge(c)}</td>
@@ -536,7 +537,22 @@ function renderCustomerTable() {
         <button class="btn small danger" onclick="deleteCustomer(${c.id})">Delete</button>
       </td>
     </tr>
-  `).join('') || '<tr><td colspan="9" class="empty-state">No homes found.</td></tr>';
+  `).join('') || '<tr><td colspan="10" class="empty-state">No homes found.</td></tr>';
+}
+
+// "Recurring" column on the Homes list — whether this home has a repeating service
+// scheduled and how much of it is still ahead. See routes/customers.js's
+// recurringSummaryByCustomer for what counts.
+function recurringCell(c) {
+  const r = c.recurring || { seriesCount: 0, upcomingCount: 0, nextDate: null };
+  const freqLabels = { weekly: 'Weekly', biweekly: 'Every 2 weeks', every4weeks: 'Every 4 weeks', custom: `Every ${c.customFrequencyDays || '?'} days` };
+  const freq = c.serviceFrequency ? freqLabels[c.serviceFrequency] : '';
+  if (r.upcomingCount > 0) {
+    return `<span class="badge completed">Yes</span>`
+      + `<div class="job-meta">${r.seriesCount} recurring service${r.seriesCount === 1 ? '' : 's'} · ${r.upcomingCount} upcoming visit${r.upcomingCount === 1 ? '' : 's'}`
+      + `${freq ? ' · ' + freq : ''}<br>Next: ${r.nextDate}</div>`;
+  }
+  return `<span class="badge cancelled">No</span>${freq ? `<div class="job-meta">Frequency set to ${freq.toLowerCase()}, but nothing is scheduled</div>` : ''}`;
 }
 
 window.viewOwnerPortal = async (ownerId) => {
