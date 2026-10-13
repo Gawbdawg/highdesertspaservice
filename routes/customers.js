@@ -5,6 +5,7 @@ const { geocodeAddress } = require('../lib/geocode');
 const { makeCustomerMatcher } = require('../lib/customerMatch');
 const { generateRecurringSeries } = require('../lib/scheduleFromFrequency');
 const { resyncDraftInvoicesForCustomer } = require('../lib/autoInvoice');
+const { syncCustomerCalendar } = require('../lib/icalSync');
 const router = express.Router();
 
 // Creates a brand-new owner account and returns its id — used when an admin links
@@ -189,7 +190,7 @@ function cleanCustomPricing(raw) {
 router.post('/', async (req, res) => {
   const {
     name, email, phone, address, notes, type, icalUrl, ownerId, newOwner, equipment,
-    serviceFrequency, customFrequencyDays, customPricing, manualLat, manualLng,
+    serviceFrequency, customFrequencyDays, customPricing, manualLat, manualLng, icalIgnoreBlocks,
   } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
   if (!address || !address.trim()) {
@@ -224,6 +225,7 @@ router.post('/', async (req, res) => {
     type: type || 'residential',
     notes: notes || '',
     icalUrl: icalUrl || '',
+    icalIgnoreBlocks: !!icalIgnoreBlocks,
     ownerId: resolvedOwnerId,
     equipment: equipment || null,
     serviceFrequency: serviceFrequency || null,
@@ -289,8 +291,15 @@ router.put('/:id', async (req, res) => {
     }
   }
 
+  if (updates.icalIgnoreBlocks !== undefined) updates.icalIgnoreBlocks = !!updates.icalIgnoreBlocks;
   const updated = store.update('customers', req.params.id, updates);
   if (!updated) return res.status(404).json({ error: 'Customer not found' });
+  // Flipping "ignore blocked dates for cleanings" should show up right away (cancelling
+  // cleanings that only came from blocks) instead of waiting for the next hourly sync.
+  if (updates.icalIgnoreBlocks !== undefined && !!(existing && existing.icalIgnoreBlocks) !== updates.icalIgnoreBlocks
+      && ((updated.icalUrls || []).length || updated.icalUrl)) {
+    syncCustomerCalendar(updated.id).catch((err) => console.error('[ical] resync after block setting change failed:', err.message));
+  }
   // A changed home-level price shouldn't leave already-completed-but-still-draft jobs
   // stuck showing the old number — see lib/autoInvoice.js#resyncDraftInvoicesForCustomer.
   if (updates.customPricing !== undefined) {

@@ -614,6 +614,10 @@ function customerForm(c = {}) {
       <input type="number" min="1" id="f_customFrequencyDays" value="${c.customFrequencyDays || ''}" placeholder="e.g. 21" />
     </label>
     <label>Notes<textarea id="f_notes" rows="3">${c.notes || ''}</textarea></label>
+    <label style="flex-direction:row; align-items:flex-start; gap:8px; font-weight:400;">
+      <input type="checkbox" id="f_icalIgnoreBlocks" style="margin-top:3px;" ${c.icalIgnoreBlocks ? 'checked' : ''} />
+      <span>Ignore blocked dates for cleanings <span style="color:var(--text-faint);">(for owners who block the calendar, like a 24-hour advance-notice setting — "Not available" entries on their calendar won't schedule a hot tub cleaning. Real reservations still do.)</span></span>
+    </label>
 
     <div style="display:flex; flex-direction: column; gap: 12px; border-top: 1px solid #eef1f2; padding-top: 12px;">
       <div style="font-size:13px; font-weight:600; color:#33505c;">Hot tub equipment (optional)</div>
@@ -806,6 +810,7 @@ function readCustomerForm() {
     customFrequencyDays: document.getElementById('f_serviceFrequency').value === 'custom'
       ? (document.getElementById('f_customFrequencyDays').value || null) : null,
     notes: document.getElementById('f_notes').value,
+    icalIgnoreBlocks: document.getElementById('f_icalIgnoreBlocks').checked,
     equipment: {
       brand: document.getElementById('f_eqBrand').value,
       model: document.getElementById('f_eqModel').value,
