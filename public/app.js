@@ -616,7 +616,7 @@ function customerForm(c = {}) {
     <label>Notes<textarea id="f_notes" rows="3">${c.notes || ''}</textarea></label>
     <label style="flex-direction:row; align-items:flex-start; gap:8px; font-weight:400;">
       <input type="checkbox" id="f_icalIgnoreBlocks" style="margin-top:3px;" ${c.icalIgnoreBlocks ? 'checked' : ''} />
-      <span>Ignore blocked dates for cleanings <span style="color:var(--text-faint);">(for owners who block the calendar, like a 24-hour advance-notice setting — "Not available" entries on their calendar won't schedule a hot tub cleaning. Real reservations still do.)</span></span>
+      <span>Ignore blocked dates for cleanings <span style="color:var(--text-faint);">(for owners with a 24-hour advance-notice setting — short "Not available" blocks of up to 2 nights won't schedule a hot tub cleaning. Real reservations and longer blocked stretches still do.)</span></span>
     </label>
 
     <div style="display:flex; flex-direction: column; gap: 12px; border-top: 1px solid #eef1f2; padding-top: 12px;">
