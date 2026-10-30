@@ -3236,26 +3236,14 @@ async function loadReports() {
     .sort((a, b) => b.value - a.value);
   renderBars('reportTechBars', techEntries);
 
-  // A cancellation fee is just a draft/sent/paid invoice linked to a cancelled
-  // appointment — completed-job invoices never exist on a cancelled one, so any match
-  // here is the fee (see lib/autoInvoice.js#maybeCreateCancellationFeeInvoice).
-  const cancelled = appointments
+  // Kept on state so the search box / "show more" / auto-cancelled toggle can re-render
+  // the list without another round-trip. See renderCancelledVisits.
+  state.reportInvoices = invoices;
+  state.reportCancelledAll = appointments
     .filter((a) => a.status === 'cancelled')
     .sort((a, b) => (b.date + (b.startTime || '')).localeCompare(a.date + (a.startTime || '')));
-  const cancelledBody = document.getElementById('cancelledVisitsBody');
-  cancelledBody.innerHTML = cancelled.length
-    ? cancelled.map((a) => {
-        const feeInvoice = invoices.find((i) => i.appointmentId === a.id);
-        return `
-          <tr>
-            <td>${a.date}</td>
-            <td>${a.customerName || 'Unknown'}</td>
-            <td>${a.serviceType || ''}</td>
-            <td>${feeInvoice ? `${money(feeInvoice.amount)} <span class="badge ${feeInvoice.status}">${feeInvoice.status}</span>` : '<span class="portal-hint" style="margin:0;">No fee</span>'}</td>
-          </tr>
-        `;
-      }).join('')
-    : '<tr><td colspan="4" class="empty-state">No cancelled visits.</td></tr>';
+  state.cancelledLimit = CANCELLED_PAGE_SIZE;
+  renderCancelledVisits();
 
   // Completed jobs should always end up with an invoice (see lib/autoInvoice.js) — if
   // one's missing here, auto-pricing couldn't find a service to bill against (no
@@ -3286,6 +3274,60 @@ async function loadReports() {
   document.getElementById('missingInvoiceSelectAll').checked = false;
   updateMissingInvoiceToolbar();
 }
+
+// ---- Cancelled visits (Reports) ----
+// A cancellation fee is just a draft/sent/paid invoice linked to a cancelled appointment —
+// completed-job invoices never exist on a cancelled one, so any match is the fee (see
+// lib/autoInvoice.js#maybeCreateCancellationFeeInvoice).
+//
+// The raw list can run to hundreds because the system itself cancels visits all the time
+// (a synced calendar showing a guest still there, a blocked-off date, etc. — every one of
+// those has a note starting "Auto-cancelled:"). Those aren't cancellations anyone asked
+// for, so by default only the ones a person cancelled show; a checkbox brings the
+// automatic ones back. Either way the list shows 10 at a time with "Show more", and the
+// search box looks through all of it (home name, service, date, or reason).
+const CANCELLED_PAGE_SIZE = 10;
+const isAutoCancelled = (a) => (a.notes || '').startsWith('Auto-cancelled');
+
+function renderCancelledVisits() {
+  const all = state.reportCancelledAll || [];
+  const invoices = state.reportInvoices || [];
+  const showAuto = document.getElementById('cancelledShowAuto').checked;
+  const q = document.getElementById('cancelledSearch').value.toLowerCase().trim();
+  const autoCount = all.filter(isAutoCancelled).length;
+
+  let rows = showAuto ? all : all.filter((a) => !isAutoCancelled(a));
+  if (q) {
+    rows = rows.filter((a) => [a.date, a.customerName, a.serviceType, a.notes]
+      .some((v) => (v || '').toLowerCase().includes(q)));
+  }
+  const shown = rows.slice(0, state.cancelledLimit || CANCELLED_PAGE_SIZE);
+
+  document.getElementById('cancelledVisitsBody').innerHTML = shown.length
+    ? shown.map((a) => {
+        const feeInvoice = invoices.find((i) => i.appointmentId === a.id);
+        const auto = isAutoCancelled(a);
+        return `
+          <tr>
+            <td>${a.date}</td>
+            <td>${a.customerName || 'Unknown'}</td>
+            <td>${a.serviceType || ''}${auto ? `<div class="job-meta"><span class="badge scheduled">Automatic</span> ${String(a.notes).replace(/^Auto-cancelled:\s*/, '').replace(/</g, '&lt;')}</div>` : ''}</td>
+            <td>${feeInvoice ? `${money(feeInvoice.amount)} <span class="badge ${feeInvoice.status}">${feeInvoice.status}</span>` : '<span class="portal-hint" style="margin:0;">No fee</span>'}</td>
+          </tr>
+        `;
+      }).join('')
+    : `<tr><td colspan="4" class="empty-state">${q ? 'No cancelled visits match that search.' : 'No cancelled visits.'}</td></tr>`;
+
+  const hiddenAuto = showAuto ? 0 : autoCount;
+  document.getElementById('cancelledSummary').textContent =
+    `Showing ${shown.length} of ${rows.length}`
+    + (hiddenAuto ? ` · ${hiddenAuto} automatic cancellation${hiddenAuto === 1 ? '' : 's'} hidden` : '');
+  document.getElementById('cancelledMoreBtn').classList.toggle('hidden', rows.length <= shown.length);
+}
+
+document.getElementById('cancelledSearch').addEventListener('input', () => { state.cancelledLimit = CANCELLED_PAGE_SIZE; renderCancelledVisits(); });
+document.getElementById('cancelledShowAuto').addEventListener('change', () => { state.cancelledLimit = CANCELLED_PAGE_SIZE; renderCancelledVisits(); });
+document.getElementById('cancelledMoreBtn').addEventListener('click', () => { state.cancelledLimit = (state.cancelledLimit || CANCELLED_PAGE_SIZE) + CANCELLED_PAGE_SIZE; renderCancelledVisits(); });
 
 // Rebuilds the owner-drilldown dropdown after every reports refresh — owners already
 // come back alphabetical from GET /api/owners, so no re-sort is needed here. Keeps

@@ -385,12 +385,18 @@
           </div>
           <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-top:16px;">
             <h3>Cancelled visits</h3>
+            <div class="filter-row" style="align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 8px;">
+              <input type="search" id="cancelledSearch" placeholder="Search by home, service, date or reason" style="flex:1; min-width:200px; max-width:340px;" />
+              <label style="flex-direction:row; align-items:center; gap:6px; font-weight:400; font-size:13px;"><input type="checkbox" id="cancelledShowAuto" /> Include automatic cancellations</label>
+            </div>
+            <p class="portal-sub" id="cancelledSummary" style="margin:0 0 8px;"></p>
             <div class="table-wrap">
             <table class="data-table">
               <thead><tr><th>Date</th><th>Home</th><th>Service</th><th>Cancellation fee</th></tr></thead>
               <tbody id="cancelledVisitsBody"></tbody>
             </table>
             </div>
+            <button class="btn hidden" id="cancelledMoreBtn" style="margin-top:8px;">Show more</button>
           </div>
           <div class="profile-section" style="background:var(--card-bg); box-shadow:0 1px 3px rgba(0,0,0,0.06); margin-top:16px;">
             <h3>Completed jobs missing an invoice</h3>
