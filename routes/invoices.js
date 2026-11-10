@@ -284,6 +284,11 @@ router.post('/:id/process-payment', async (req, res) => {
     return res.status(400).json({ error: "This owner doesn't have autopay set up with a card on file — email the invoice instead, or have them turn on autopay from their portal." });
   }
 
+  if (!(invoice.lineItems && invoice.lineItems.length)
+      && ownerQualifiesForMonthly(owner, store.getAll('customers'))) {
+    return res.status(400).json({ error: 'This owner is billed monthly — generate the combined monthly invoice and charge that instead of this single visit.' });
+  }
+
   await attemptAutopay(invoice);
   const fresh = store.getById('invoices', req.params.id);
   if (fresh.status === 'paid') {
