@@ -116,3 +116,28 @@
 .portal-app .btn-close { padding: 6px; min-width: 36px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
 .owner-tab-btn { padding: 12px 14px; }
 .addon-chip { padding: 8px 14px; }
+
+/* ---- Bold & branded login / sign-up ---- */
+.auth-hero { display: none; }
+.portal-app:has(#loginView:not(.hidden)),
+.portal-app:has(#signupView:not(.hidden)) {
+  background: linear-gradient(170deg, #3a2013 0%, #a0522d 55%, #dcb12b 135%);
+}
+.portal-app:has(#loginView:not(.hidden)) .portal-header,
+.portal-app:has(#signupView:not(.hidden)) .portal-header { display: none; }
+.portal-app:has(#loginView:not(.hidden)) .auth-hero,
+.portal-app:has(#signupView:not(.hidden)) .auth-hero {
+  display: block; text-align: center; color: #fff; padding: 34px 20px 54px;
+}
+.auth-hero-logo {
+  width: 96px; height: 96px; border-radius: 50%; background: #fff; padding: 4px; object-fit: cover;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.25); margin: 0 auto 12px; display: block;
+}
+.auth-hero h1 { margin: 0; font-size: 26px; color: #fff; }
+.auth-hero p { margin: 6px 0 0; opacity: 0.88; font-size: 14px; }
+#loginView, #signupView {
+  margin: -36px auto 24px; border-radius: 18px; padding: 24px;
+  box-shadow: 0 14px 34px rgba(0,0,0,0.28);
+}
+#loginView h1, #signupView h1 { font-size: 20px; }
+#loginView .btn.primary, #signupView .btn.primary { background: #a0522d; border-color: #a0522d; }
